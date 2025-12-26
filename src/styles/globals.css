@@ -1,0 +1,400 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-dark-bg dark:text-gray-100 font-inter antialiased;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Card Styles */
+  .card {
+    @apply bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-sm dark:shadow-card;
+  }
+
+  .card-hover {
+    @apply hover:shadow-md dark:hover:shadow-card-hover hover:border-primary-500/30 transition-all duration-300;
+  }
+
+  /* Button Styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-dark-bg disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-dark-border focus:ring-gray-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger text-white hover:bg-danger-dark focus:ring-danger-light;
+  }
+
+  .btn-success {
+    @apply btn bg-success text-white hover:bg-success-dark focus:ring-success-light;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-md {
+    @apply px-4 py-2 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  /* Input Styles */
+  .input {
+    @apply w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-input px-4 py-2.5 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-200;
+  }
+
+  .input-error {
+    @apply border-danger focus:border-danger focus:ring-danger;
+  }
+
+  /* Label Styles */
+  .label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5;
+  }
+
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400;
+  }
+
+  .badge-success {
+    @apply badge bg-green-100 dark:bg-success/20 text-green-600 dark:text-success-light;
+  }
+
+  .badge-danger {
+    @apply badge bg-red-100 dark:bg-danger/20 text-red-600 dark:text-danger-light;
+  }
+
+  .badge-warning {
+    @apply badge bg-yellow-100 dark:bg-warning/20 text-yellow-600 dark:text-warning-light;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-100 dark:bg-info/20 text-blue-600 dark:text-info-light;
+  }
+
+  /* Table Styles */
+  .table-container {
+    @apply overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-border;
+  }
+
+  .table {
+    @apply w-full text-left;
+  }
+
+  .table th {
+    @apply bg-gray-50 dark:bg-dark-sidebar px-4 py-3 text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider;
+  }
+
+  .table td {
+    @apply px-4 py-3 text-sm text-gray-700 dark:text-gray-200 border-t border-gray-200 dark:border-dark-border;
+  }
+
+  .table tbody tr {
+    @apply hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors duration-150;
+  }
+
+  /* Sidebar Styles */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-hover transition-all duration-200;
+  }
+
+  .sidebar-link-active {
+    @apply bg-primary-50 dark:bg-primary-600/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-600/30 hover:text-primary-700 dark:hover:text-primary-300;
+  }
+
+  /* Stat Card */
+  .stat-card {
+    @apply card p-6 flex items-center gap-4;
+  }
+
+  .stat-icon {
+    @apply w-12 h-12 rounded-xl flex items-center justify-center;
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4;
+  }
+
+  .modal-content {
+    @apply bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-xl w-full max-h-[90vh] overflow-y-auto;
+  }
+
+  .modal-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border;
+  }
+
+  .modal-body {
+    @apply px-6 py-4;
+  }
+
+  .modal-footer {
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-dark-border;
+  }
+
+  /* Dropdown Styles */
+  .dropdown {
+    @apply absolute right-0 mt-2 w-48 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg dark:shadow-dropdown z-50;
+  }
+
+  .dropdown-item {
+    @apply flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover hover:text-gray-900 dark:hover:text-white transition-colors duration-150;
+  }
+
+  /* Scrollbar Styles */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-dark-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-dark-border rounded-full hover:bg-gray-400 dark:hover:bg-dark-hover;
+  }
+
+  /* Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-online {
+    @apply status-dot bg-green-500 dark:bg-success-light animate-pulse;
+  }
+
+  .status-offline {
+    @apply status-dot bg-gray-400 dark:bg-gray-500;
+  }
+
+  .status-busy {
+    @apply status-dot bg-red-500 dark:bg-danger-light;
+  }
+
+  /* Animation Classes */
+  .fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Chat Styles */
+  .chat-bubble {
+    @apply max-w-[70%] px-4 py-2 rounded-2xl;
+  }
+
+  .chat-bubble-sent {
+    @apply chat-bubble bg-primary-600 text-white rounded-br-sm;
+  }
+
+  .chat-bubble-received {
+    @apply chat-bubble bg-gray-100 dark:bg-dark-hover text-gray-900 dark:text-gray-100 rounded-bl-sm;
+  }
+
+  /* Calendar Styles */
+  .calendar-day {
+    @apply w-10 h-10 flex items-center justify-center rounded-lg text-sm cursor-pointer transition-colors duration-150;
+  }
+
+  .calendar-day-current {
+    @apply bg-primary-600 text-white;
+  }
+
+  .calendar-day-hover {
+    @apply hover:bg-gray-100 dark:hover:bg-dark-hover;
+  }
+
+  .calendar-day-disabled {
+    @apply text-gray-400 dark:text-gray-600 cursor-not-allowed;
+  }
+
+  /* WYSIWYG Editor Styles */
+  .wysiwyg-editor {
+    @apply focus:outline-none min-h-[200px] p-4 text-gray-900 dark:text-gray-100;
+  }
+
+  .wysiwyg-editor p {
+    @apply mb-3;
+  }
+
+  .wysiwyg-editor h1 {
+    @apply text-2xl font-bold mb-4 text-gray-900 dark:text-white;
+  }
+
+  .wysiwyg-editor h2 {
+    @apply text-xl font-bold mb-3 text-gray-900 dark:text-white;
+  }
+
+  .wysiwyg-editor h3 {
+    @apply text-lg font-semibold mb-2 text-gray-900 dark:text-white;
+  }
+
+  .wysiwyg-editor strong {
+    @apply font-bold;
+  }
+
+  .wysiwyg-editor em {
+    @apply italic;
+  }
+
+  .wysiwyg-editor u {
+    @apply underline;
+  }
+
+  .wysiwyg-editor s {
+    @apply line-through;
+  }
+
+  .wysiwyg-editor ul {
+    @apply list-disc list-inside mb-3 ml-4;
+  }
+
+  .wysiwyg-editor ol {
+    @apply list-decimal list-inside mb-3 ml-4;
+  }
+
+  .wysiwyg-editor li {
+    @apply mb-1;
+  }
+
+  .wysiwyg-editor img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  .wysiwyg-editor p.is-editor-empty:first-child::before {
+    @apply text-gray-400 dark:text-gray-500 float-left h-0 pointer-events-none;
+    content: attr(data-placeholder);
+  }
+
+  .wysiwyg-editor .is-empty::before {
+    @apply text-gray-400 dark:text-gray-500;
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+}
+
+/* Additional utility classes */
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-primary-600;
+  }
+
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary-600 to-primary-700;
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(to right, #6366f1, #8b5cf6) 1;
+  }
+
+  .glass {
+    @apply bg-white/80 dark:bg-dark-card/80 backdrop-blur-lg;
+  }
+}
+
