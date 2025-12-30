@@ -31,6 +31,7 @@ import {
   Check,
   Search,
   Building2,
+  ArrowUpDown,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Lead, Bureau } from '@/types/database'
@@ -43,6 +44,18 @@ const leadStatuses = [
   { value: 'onboarding_booket', label: 'Onboarding Booket' },
   { value: 'kontrakt_sendt', label: 'Kontrakt Sendt' },
   { value: 'kontrakt_underskrevet', label: 'Kontrakt Underskrevet' },
+]
+
+// Status order from new lead to closed/lost
+const statusOrder = [
+  'nyt_lead',
+  'kvalifikationskald_booket',
+  'discoverykald_booket',
+  'salgskald_booket',
+  'onboarding_booket',
+  'kontrakt_sendt',
+  'kontrakt_underskrevet',
+  'lead_tabt',
 ]
 
 export default function BureauLeadsPage() {
@@ -67,6 +80,7 @@ export default function BureauLeadsPage() {
     google_meet_link: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [sortByStatus, setSortByStatus] = useState(false)
 
   const supabase = createClient()
 
@@ -248,12 +262,19 @@ export default function BureauLeadsPage() {
     }
   }
 
-  const filteredLeads = leads.filter(
-    (l) =>
-      l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.phone.includes(searchTerm) ||
-      l.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredLeads = leads
+    .filter(
+      (l) =>
+        l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.phone.includes(searchTerm) ||
+        l.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortByStatus) return 0
+      const aIndex = statusOrder.indexOf(a.status) === -1 ? 999 : statusOrder.indexOf(a.status)
+      const bIndex = statusOrder.indexOf(b.status) === -1 ? 999 : statusOrder.indexOf(b.status)
+      return aIndex - bIndex
+    })
 
   if (loading) {
     return (
@@ -321,7 +342,17 @@ export default function BureauLeadsPage() {
               <TableHead>Navn</TableHead>
               <TableHead>Telefon</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <button
+                  onClick={() => setSortByStatus(!sortByStatus)}
+                  className={`flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors ${
+                    sortByStatus ? 'text-primary-600 dark:text-primary-400' : ''
+                  }`}
+                >
+                  Status
+                  <ArrowUpDown className="w-3 h-3" />
+                </button>
+              </TableHead>
               <TableHead>Handlinger</TableHead>
             </TableRow>
           </TableHeader>

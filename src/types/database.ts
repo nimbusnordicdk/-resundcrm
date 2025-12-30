@@ -84,6 +84,8 @@ export interface Lead {
   campaign_id: string;
   name: string;
   company?: string;
+  company_name?: string;
+  contact_person?: string;
   phone: string;
   email?: string;
   notes?: string;
@@ -99,6 +101,8 @@ export interface Lead {
   updated_at: string;
 }
 
+export type MeetingAttendanceStatus = 'pending' | 'show_up' | 'no_show' | 'cancelled';
+
 export interface Meeting {
   id: string;
   title: string;
@@ -110,6 +114,10 @@ export interface Meeting {
   saelger_id: string;
   lead_id?: string;
   customer_id?: string;
+  attendance_status: MeetingAttendanceStatus;
+  attended_at?: string;
+  cancelled_at?: string;
+  cancelled_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -197,7 +205,11 @@ export interface CallLog {
   status: 'completed' | 'no_answer' | 'busy' | 'failed';
   lead_id?: string;
   twilio_call_sid?: string;
+  call_sid?: string;
   recording_url?: string;
+  recording_sid?: string;
+  transcript?: string;
+  transcript_created_at?: string;
   created_at: string;
 }
 

@@ -35,6 +35,10 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('logos', 'logos', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- Allow authenticated users to upload files
 CREATE POLICY "storage_objects_insert" ON storage.objects
   FOR INSERT TO authenticated
@@ -44,6 +48,12 @@ CREATE POLICY "storage_objects_insert" ON storage.objects
 CREATE POLICY "storage_objects_select" ON storage.objects
   FOR SELECT TO authenticated
   USING (true);
+
+-- Allow public access to files in public buckets (for getPublicUrl to work)
+DROP POLICY IF EXISTS "storage_objects_public_select" ON storage.objects;
+CREATE POLICY "storage_objects_public_select" ON storage.objects
+  FOR SELECT TO anon
+  USING (bucket_id IN ('logos', 'avatars', 'documents', 'invoices'));
 
 -- Allow authenticated users to update their files
 CREATE POLICY "storage_objects_update" ON storage.objects

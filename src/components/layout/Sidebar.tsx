@@ -11,6 +11,7 @@ import {
   FolderOpen,
   MessageSquare,
   Phone,
+  PhoneCall,
   FileText,
   Receipt,
   Wallet,
@@ -20,6 +21,9 @@ import {
   ChevronLeft,
   Menu,
   BarChart3,
+  Sparkles,
+  GraduationCap,
+  BookOpen,
 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
@@ -38,9 +42,11 @@ interface NavItem {
 
 const adminNav: NavItem[] = [
   { title: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { title: 'ØresundAI', href: '/admin/ai', icon: Sparkles },
   { title: 'Øresund Stats', href: '/admin/stats', icon: BarChart3 },
   { title: 'Alle Bureauer', href: '/admin/bureauer', icon: Building2 },
   { title: 'Alle Ansatte', href: '/admin/ansatte', icon: Users },
+  { title: 'Uddannelse', href: '/admin/uddannelse', icon: GraduationCap },
   { title: 'Filer', href: '/admin/filer', icon: FolderOpen },
   { title: 'Chat', href: '/admin/chat', icon: MessageSquare },
   { title: 'Kampagner Kold', href: '/admin/kampagner', icon: Target },
@@ -51,13 +57,16 @@ const adminNav: NavItem[] = [
 
 const saelgerNav: NavItem[] = [
   { title: 'Dashboard', href: '/saelger', icon: LayoutDashboard },
+  { title: 'ØresundAI', href: '/saelger/ai', icon: Sparkles },
   { title: 'Øresund Stats', href: '/saelger/stats', icon: BarChart3 },
   { title: 'Møder', href: '/saelger/moeder', icon: Calendar },
   { title: 'Koldkampagner', href: '/saelger/koldkampagner', icon: Target },
   { title: 'Bureau Kampagner', href: '/saelger/bureaukampagner', icon: Building2 },
   { title: 'Chat', href: '/saelger/chat', icon: MessageSquare },
   { title: 'Ring Op', href: '/saelger/ring-op', icon: Phone },
+  { title: 'Autodialer', href: '/saelger/autodialer', icon: PhoneCall },
   { title: 'Kontrakter', href: '/saelger/kontrakter', icon: FileText },
+  { title: 'E-Learning', href: '/saelger/e-learning', icon: BookOpen },
 ]
 
 const bureauNav: NavItem[] = [

@@ -33,6 +33,7 @@ function RingOpContent() {
   const callStartTimeRef = useRef<Date | null>(null)
   const deviceRef = useRef<TwilioDevice | null>(null)
   const activeCallRef = useRef<TwilioCall | null>(null)
+  const callSidRef = useRef<string | null>(null)
 
   const supabase = createClient()
 
@@ -195,6 +196,12 @@ function RingOpContent() {
 
       call.on('accept', () => {
         console.log('Call accepted')
+        // Get the call SID from parameters
+        const callSid = call.parameters?.CallSid
+        console.log('Call SID found:', callSid)
+        if (callSid) {
+          callSidRef.current = callSid
+        }
         setIsCallActive(true)
         setCallStatus('connected')
         toast.success('Forbundet!')
@@ -243,6 +250,10 @@ function RingOpContent() {
       callTimerRef.current = null
     }
 
+    // Get the call SID from ref (not affected by closure issues)
+    const callSid = callSidRef.current
+    console.log('Logging call with SID:', callSid)
+
     // Log call to database
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -256,13 +267,14 @@ function RingOpContent() {
         direction: 'outbound',
         status: duration > 0 ? 'completed' : 'no_answer',
         lead_id: leadId || null,
+        call_sid: callSid || null,
       })
 
       if (error) {
         console.error('Error logging call:', error)
         toast.error('Kunne ikke gemme opkaldslog')
       } else {
-        console.log('Call logged successfully:', { duration, phoneNumber })
+        console.log('Call logged successfully:', { duration, phoneNumber, callSid })
       }
     } catch (error) {
       console.error('Error logging call:', error)
@@ -272,6 +284,7 @@ function RingOpContent() {
     setCallStatus('ended')
     activeCallRef.current = null
     callStartTimeRef.current = null
+    callSidRef.current = null
 
     if (duration > 0) {
       toast.success(`Opkald afsluttet (${formatDuration(duration)})`)

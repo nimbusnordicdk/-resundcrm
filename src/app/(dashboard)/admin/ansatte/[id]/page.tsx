@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -46,6 +47,15 @@ import {
   Building2,
   Calendar,
   BarChart3,
+  Play,
+  Pause,
+  FileText,
+  X,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  UserCheck,
+  UserX,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { User, Customer, CallLog } from '@/types/database'
@@ -104,9 +114,153 @@ export default function SaelgerDetailPage() {
   const [campaignPerformance, setCampaignPerformance] = useState<CampaignPerformance[]>([])
   const [bureauPerformance, setBureauPerformance] = useState<BureauPerformance[]>([])
 
+  // Meeting stats
+  const [meetingStats, setMeetingStats] = useState({
+    total: 0,
+    showUp: 0,
+    noShow: 0,
+    cancelled: 0,
+    pending: 0,
+    showUpRate: 0,
+  })
+
   const commissionPerSale = 500 // DKK
 
   const supabase = createClient()
+
+  // Audio player state
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playingCallId, setPlayingCallId] = useState<string | null>(null)
+  const [audioLoading, setAudioLoading] = useState<string | null>(null)
+  const [audioProgress, setAudioProgress] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+
+  // Transcript modal state
+  const [selectedTranscript, setSelectedTranscript] = useState<{
+    callId: string
+    phoneNumber: string
+    transcript: string
+    date: string
+  } | null>(null)
+
+  // Audio player modal state
+  const [audioPlayerCall, setAudioPlayerCall] = useState<{
+    id: string
+    recordingSid: string
+    phoneNumber: string
+    date: string
+    duration: number
+  } | null>(null)
+  const [portalMounted, setPortalMounted] = useState(false)
+
+  useEffect(() => {
+    setPortalMounted(true)
+    return () => setPortalMounted(false)
+  }, [])
+
+  function openAudioPlayer(call: any) {
+    // Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setPlayingCallId(null)
+    setAudioProgress(0)
+    setAudioCurrentTime(0)
+    setAudioDuration(0)
+
+    setAudioPlayerCall({
+      id: call.id,
+      recordingSid: call.recording_sid,
+      phoneNumber: `${call.country_code} ${call.phone_number}`,
+      date: new Date(call.created_at).toLocaleString('da-DK'),
+      duration: call.duration_seconds,
+    })
+
+    // Load audio
+    setAudioLoading(call.id)
+    const proxyUrl = `/api/twilio/recording/${call.recording_sid}`
+    const audio = new Audio(proxyUrl)
+    audioRef.current = audio
+
+    audio.onloadedmetadata = () => {
+      setAudioDuration(audio.duration)
+    }
+
+    audio.oncanplaythrough = () => {
+      setAudioLoading(null)
+    }
+
+    audio.ontimeupdate = () => {
+      setAudioCurrentTime(audio.currentTime)
+      setAudioProgress((audio.currentTime / audio.duration) * 100)
+    }
+
+    audio.onended = () => {
+      setPlayingCallId(null)
+      setAudioProgress(0)
+      setAudioCurrentTime(0)
+    }
+
+    audio.onerror = () => {
+      setAudioLoading(null)
+      toast.error('Kunne ikke indlæse optagelse')
+    }
+
+    audio.load()
+  }
+
+  function togglePlayPause() {
+    if (!audioRef.current) return
+
+    if (playingCallId === audioPlayerCall?.id) {
+      audioRef.current.pause()
+      setPlayingCallId(null)
+    } else {
+      audioRef.current.play()
+      setPlayingCallId(audioPlayerCall?.id || null)
+    }
+  }
+
+  function seekAudio(e: React.MouseEvent<HTMLDivElement>) {
+    if (!audioRef.current || !audioDuration) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const percentage = x / rect.width
+    const newTime = percentage * audioDuration
+
+    audioRef.current.currentTime = newTime
+    setAudioCurrentTime(newTime)
+    setAudioProgress(percentage * 100)
+  }
+
+  function skipTime(seconds: number) {
+    if (!audioRef.current) return
+
+    const newTime = Math.max(0, Math.min(audioDuration, audioRef.current.currentTime + seconds))
+    audioRef.current.currentTime = newTime
+  }
+
+  function closeAudioPlayer() {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setAudioPlayerCall(null)
+    setPlayingCallId(null)
+    setAudioProgress(0)
+    setAudioCurrentTime(0)
+    setAudioDuration(0)
+  }
+
+  function formatTime(seconds: number) {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
 
   useEffect(() => {
     fetchSaelgerData()
@@ -214,6 +368,24 @@ export default function SaelgerDetailPage() {
       salaryLastMonth: totalLastMonth * (commissionPercent / 100),
       leadsLost: 0,
     })
+
+    // Fetch meeting stats
+    const { data: meetingsData } = await supabase
+      .from('meetings')
+      .select('attendance_status')
+      .eq('saelger_id', params.id)
+
+    if (meetingsData) {
+      const total = meetingsData.length
+      const showUp = meetingsData.filter(m => m.attendance_status === 'show_up').length
+      const noShow = meetingsData.filter(m => m.attendance_status === 'no_show').length
+      const cancelled = meetingsData.filter(m => m.attendance_status === 'cancelled').length
+      const pending = meetingsData.filter(m => !m.attendance_status || m.attendance_status === 'pending').length
+      const completedMeetings = showUp + noShow
+      const showUpRate = completedMeetings > 0 ? Math.round((showUp / completedMeetings) * 100) : 0
+
+      setMeetingStats({ total, showUp, noShow, cancelled, pending, showUpRate })
+    }
 
     setLoading(false)
   }
@@ -539,6 +711,40 @@ export default function SaelgerDetailPage() {
           iconColor="bg-danger"
         />
       </div>
+
+      {/* Meeting Stats */}
+      <Card className="mb-6">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary-500" />
+            Møde Statistik
+          </h2>
+        </div>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-dark-hover">
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{meetingStats.total}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Møder</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{meetingStats.showUp}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Mødt Op</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{meetingStats.noShow}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ikke Mødt</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-dark-hover">
+              <p className="text-2xl font-bold text-gray-500 dark:text-gray-400">{meetingStats.cancelled}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Aflyst</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
+              <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">{meetingStats.showUpRate}%</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Show Up Rate</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Performance Stats Section */}
       <div className="border-t border-gray-200 dark:border-dark-border pt-6">
@@ -973,6 +1179,8 @@ export default function SaelgerDetailPage() {
               <TableHead>Varighed</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Tidspunkt</TableHead>
+              <TableHead>Optagelse</TableHead>
+              <TableHead>Transskription</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1024,12 +1232,181 @@ export default function SaelgerDetailPage() {
                   <TableCell>
                     {new Date(call.created_at).toLocaleString('da-DK')}
                   </TableCell>
+                  <TableCell>
+                    {call.recording_sid ? (
+                      <button
+                        onClick={() => openAudioPlayer(call)}
+                        className="p-2 rounded-full bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+                        title="Åbn afspiller"
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500 text-sm italic">
+                        Ingen
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {call.transcript ? (
+                      <button
+                        onClick={() => setSelectedTranscript({
+                          callId: call.id,
+                          phoneNumber: `${call.country_code} ${call.phone_number}`,
+                          transcript: call.transcript,
+                          date: new Date(call.created_at).toLocaleString('da-DK')
+                        })}
+                        className="p-2 rounded-full bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+                        title="Vis transskription"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                    ) : call.recording_sid ? (
+                      <span className="text-gray-400 dark:text-gray-500 text-xs italic">
+                        Behandler...
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500 text-sm italic">
+                        -
+                      </span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* Audio Player Modal */}
+      {audioPlayerCall && portalMounted && createPortal(
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={closeAudioPlayer}>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Optagelse</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  {audioPlayerCall.phoneNumber} • {audioPlayerCall.date}
+                </p>
+              </div>
+              <button
+                onClick={closeAudioPlayer}
+                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="px-6 py-6">
+              {/* Progress Bar */}
+              <div
+                className="relative h-2 bg-gray-200 dark:bg-dark-hover rounded-full cursor-pointer group mb-4"
+                onClick={seekAudio}
+              >
+                <div
+                  className="absolute left-0 top-0 h-full bg-primary-500 rounded-full transition-all"
+                  style={{ width: `${audioProgress}%` }}
+                />
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-primary-500 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ left: `calc(${audioProgress}% - 8px)` }}
+                />
+              </div>
+
+              {/* Time Display */}
+              <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-6">
+                <span>{formatTime(audioCurrentTime)}</span>
+                <span>{formatTime(audioDuration)}</span>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  onClick={() => skipTime(-10)}
+                  className="p-3 rounded-full bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+                  title="Spol 10 sek. tilbage"
+                >
+                  <SkipBack className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={togglePlayPause}
+                  disabled={audioLoading === audioPlayerCall.id}
+                  className="p-4 rounded-full bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
+                >
+                  {audioLoading === audioPlayerCall.id ? (
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : playingCallId === audioPlayerCall.id ? (
+                    <Pause className="w-6 h-6" />
+                  ) : (
+                    <Play className="w-6 h-6" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => skipTime(10)}
+                  className="p-3 rounded-full bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"
+                  title="Spol 10 sek. frem"
+                >
+                  <SkipForward className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Volume Indicator */}
+              <div className="flex items-center justify-center gap-2 mt-6 text-gray-400 dark:text-gray-500">
+                <Volume1 className="w-4 h-4" />
+                <span className="text-xs">Varighed: {formatTime(audioPlayerCall.duration)}</span>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Transcript Modal */}
+      {selectedTranscript && portalMounted && createPortal(
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setSelectedTranscript(null)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transskription</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  {selectedTranscript.phoneNumber} • {selectedTranscript.date}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedTranscript(null)}
+                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {selectedTranscript.transcript}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedTranscript.transcript)
+                  toast.success('Transskription kopieret')
+                }}
+                className="btn btn-secondary btn-sm"
+              >
+                Kopier tekst
+              </button>
+              <button
+                onClick={() => setSelectedTranscript(null)}
+                className="btn btn-primary btn-sm"
+              >
+                Luk
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

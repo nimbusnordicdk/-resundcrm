@@ -16,11 +16,14 @@ export async function POST(request: NextRequest) {
 
     // Check if this is an outgoing call from browser (To will be a phone number)
     if (to && to.startsWith('+')) {
-      // Outgoing call from browser to phone
+      // Outgoing call from browser to phone with recording
       const dial = twiml.dial({
         callerId: process.env.TWILIO_PHONE_NUMBER,
         timeout: 30,
         answerOnBridge: true, // Only charge when call is answered
+        record: 'record-from-answer-dual', // Record both legs of the call
+        recordingStatusCallback: `${process.env.NEXT_PUBLIC_APP_URL}/api/twilio/recording-status`,
+        recordingStatusCallbackEvent: ['completed'],
       })
       dial.number(to)
     } else {

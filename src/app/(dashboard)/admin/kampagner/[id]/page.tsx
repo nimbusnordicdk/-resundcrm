@@ -30,6 +30,11 @@ import {
   Download,
   Plus,
   FileSpreadsheet,
+  Search,
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  Mail,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Papa from 'papaparse'
@@ -40,6 +45,18 @@ interface LeaderboardEntry {
   name: string
   sales: number
 }
+
+// Status order from new lead to closed/lost
+const statusOrder = [
+  'nyt_lead',
+  'kvalifikationskald_booket',
+  'discoverykald_booket',
+  'salgskald_booket',
+  'onboarding_booket',
+  'kontrakt_sendt',
+  'kontrakt_underskrevet',
+  'lead_tabt',
+]
 
 export default function KampagneDetailPage() {
   const params = useParams()
@@ -57,6 +74,9 @@ export default function KampagneDetailPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [previewData, setPreviewData] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortByStatus, setSortByStatus] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   const supabase = createClient()
 
@@ -229,6 +249,22 @@ export default function KampagneDetailPage() {
     a.click()
   }
 
+  // Filter and sort leads
+  const filteredLeads = leads
+    .filter(
+      (l) =>
+        l.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.phone?.includes(searchTerm) ||
+        l.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortByStatus) return 0
+      const aIndex = statusOrder.indexOf(a.status) === -1 ? 999 : statusOrder.indexOf(a.status)
+      const bIndex = statusOrder.indexOf(b.status) === -1 ? 999 : statusOrder.indexOf(b.status)
+      return aIndex - bIndex
+    })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -350,44 +386,162 @@ export default function KampagneDetailPage() {
         </Card>
       )}
 
-      {/* Leads Table */}
+      {/* Leads Section */}
       <Card>
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Alle Leads</h2>
-          <span className="text-sm text-gray-500 dark:text-gray-400">{leads.length} leads</span>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Alle Leads</h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400">({filteredLeads.length} leads)</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Søg leads..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input pl-10 w-full sm:w-64"
+                />
+              </div>
+
+              {/* Sort Toggle */}
+              <button
+                onClick={() => setSortByStatus(!sortByStatus)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  sortByStatus
+                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                    : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                Status
+              </button>
+
+              {/* View Toggle */}
+              <div className="flex bg-gray-100 dark:bg-dark-hover rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  title="Liste visning"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  title="Grid visning"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Navn</TableHead>
-              <TableHead>Virksomhed</TableHead>
-              <TableHead>Telefon</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Sælger</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {leads.length === 0 ? (
-              <TableEmpty message="Ingen leads i denne kampagne" />
+
+        {/* List View */}
+        {viewMode === 'list' && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Navn</TableHead>
+                <TableHead>Virksomhed</TableHead>
+                <TableHead>Telefon</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Sælger</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLeads.length === 0 ? (
+                <TableEmpty message="Ingen leads fundet" />
+              ) : (
+                filteredLeads.map((lead: any) => (
+                  <TableRow key={lead.id}>
+                    <TableCell className="font-medium text-gray-900 dark:text-white">
+                      {lead.name}
+                    </TableCell>
+                    <TableCell>{lead.company || '-'}</TableCell>
+                    <TableCell>{lead.phone}</TableCell>
+                    <TableCell>{lead.email || '-'}</TableCell>
+                    <TableCell>
+                      <LeadStatusBadge status={lead.status} />
+                    </TableCell>
+                    <TableCell>{lead.saelger?.full_name || '-'}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+
+        {/* Grid View */}
+        {viewMode === 'grid' && (
+          <div className="p-6">
+            {filteredLeads.length === 0 ? (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                Ingen leads fundet
+              </p>
             ) : (
-              leads.map((lead: any) => (
-                <TableRow key={lead.id}>
-                  <TableCell className="font-medium text-gray-900 dark:text-white">
-                    {lead.name}
-                  </TableCell>
-                  <TableCell>{lead.company || '-'}</TableCell>
-                  <TableCell>{lead.phone}</TableCell>
-                  <TableCell>{lead.email || '-'}</TableCell>
-                  <TableCell>
-                    <LeadStatusBadge status={lead.status} />
-                  </TableCell>
-                  <TableCell>{lead.saelger?.full_name || '-'}</TableCell>
-                </TableRow>
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredLeads.map((lead: any) => (
+                  <div
+                    key={lead.id}
+                    className="p-4 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          {lead.name}
+                        </h3>
+                        {lead.company && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {lead.company}
+                          </p>
+                        )}
+                      </div>
+                      <LeadStatusBadge status={lead.status} />
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      {lead.phone && (
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                          <Phone className="w-4 h-4" />
+                          {lead.phone}
+                        </div>
+                      )}
+                      {lead.email && (
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                          <Mail className="w-4 h-4" />
+                          {lead.email}
+                        </div>
+                      )}
+                    </div>
+
+                    {lead.saelger?.full_name && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-dark-border">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Sælger: {lead.saelger.full_name}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
-          </TableBody>
-        </Table>
+          </div>
+        )}
       </Card>
 
       {/* Upload Leads Modal */}

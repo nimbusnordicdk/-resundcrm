@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, Button, Input } from '@/components/ui'
+import { Card, Button, Input, Modal, ModalFooter } from '@/components/ui'
 import {
   User,
   Lock,
@@ -11,6 +11,8 @@ import {
   Save,
   Eye,
   EyeOff,
+  Camera,
+  Upload,
 } from 'lucide-react'
 import type { User as UserType } from '@/types/database'
 import toast from 'react-hot-toast'
@@ -39,6 +41,12 @@ export default function IndstillingerPage() {
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [chatNotifications, setChatNotifications] = useState(true)
   const [meetingReminders, setMeetingReminders] = useState(true)
+
+  // Avatar upload
+  const [showAvatarModal, setShowAvatarModal] = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const supabase = createClient()
 
@@ -121,6 +129,59 @@ export default function IndstillingerPage() {
     }
   }
 
+  function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setAvatarFile(file)
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setAvatarPreview(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function handleAvatarUpload() {
+    if (!avatarFile || !user) return
+
+    setUploadingAvatar(true)
+
+    try {
+      const fileExt = avatarFile.name.split('.').pop()
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, avatarFile, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName)
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar_url: urlData.publicUrl })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError
+
+      setUser({ ...user, avatar_url: urlData.publicUrl })
+      toast.success('Profilbillede opdateret!')
+      setShowAvatarModal(false)
+      setAvatarFile(null)
+      setAvatarPreview(null)
+    } catch (error: any) {
+      console.error('Avatar upload error:', error)
+      toast.error(error.message || 'Kunne ikke uploade profilbillede')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const tabs = [
     { id: 'profil' as TabType, label: 'Profil', icon: User },
     { id: 'sikkerhed' as TabType, label: 'Sikkerhed', icon: Lock },
@@ -191,22 +252,37 @@ export default function IndstillingerPage() {
               <div className="p-6 space-y-6">
                 {/* Avatar */}
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-full bg-primary-600 flex items-center justify-center">
+                  <button
+                    onClick={() => setShowAvatarModal(true)}
+                    className="relative group w-20 h-20 rounded-full overflow-hidden cursor-pointer"
+                    title="Klik for at ændre profilbillede"
+                  >
                     {user?.avatar_url ? (
                       <img
                         src={user.avatar_url}
-                        alt={user.full_name}
-                        className="w-full h-full rounded-full object-cover"
+                        alt={user?.full_name || ''}
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-white text-2xl font-bold">
-                        {user?.full_name?.charAt(0).toUpperCase() || 'U'}
-                      </span>
+                      <div className="w-full h-full bg-primary-600 flex items-center justify-center">
+                        <span className="text-white text-2xl font-bold">
+                          {user?.full_name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
                     )}
-                  </div>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-white" />
+                    </div>
+                  </button>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">{user?.full_name}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{user?.role ? getRoleName(user.role) : ''}</p>
+                    <button
+                      onClick={() => setShowAvatarModal(true)}
+                      className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-500 mt-1"
+                    >
+                      Skift profilbillede
+                    </button>
                   </div>
                 </div>
 
@@ -448,6 +524,78 @@ export default function IndstillingerPage() {
           )}
         </div>
       </div>
+
+      {/* Avatar Upload Modal */}
+      <Modal
+        isOpen={showAvatarModal}
+        onClose={() => {
+          setShowAvatarModal(false)
+          setAvatarFile(null)
+          setAvatarPreview(null)
+        }}
+        title="Upload Profilbillede"
+      >
+        <div className="space-y-4">
+          {/* Current/Preview */}
+          <div className="flex justify-center">
+            <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 dark:border-dark-border">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.full_name || ''}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 dark:bg-dark-hover">
+                  <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="text-xs text-gray-500">Intet billede</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* File Input */}
+          <div>
+            <label className="label">Vælg billede</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarFileChange}
+              className="input py-2 w-full"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Understøttede formater: JPG, PNG, GIF (max 5MB)
+            </p>
+          </div>
+        </div>
+
+        <ModalFooter>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setShowAvatarModal(false)
+              setAvatarFile(null)
+              setAvatarPreview(null)
+            }}
+          >
+            Annuller
+          </Button>
+          <Button
+            onClick={handleAvatarUpload}
+            loading={uploadingAvatar}
+            disabled={!avatarFile}
+          >
+            Upload Billede
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   )
 }

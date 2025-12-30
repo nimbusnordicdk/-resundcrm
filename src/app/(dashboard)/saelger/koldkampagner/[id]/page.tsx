@@ -30,6 +30,10 @@ import {
   X,
   Check,
   Search,
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  Mail,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Lead, Campaign, Bureau } from '@/types/database'
@@ -42,6 +46,18 @@ const leadStatuses = [
   { value: 'onboarding_booket', label: 'Onboarding Booket' },
   { value: 'kontrakt_sendt', label: 'Kontrakt Sendt' },
   { value: 'kontrakt_underskrevet', label: 'Kontrakt Underskrevet' },
+]
+
+// Status order from new lead to closed/lost
+const statusOrder = [
+  'nyt_lead',
+  'kvalifikationskald_booket',
+  'discoverykald_booket',
+  'salgskald_booket',
+  'onboarding_booket',
+  'kontrakt_sendt',
+  'kontrakt_underskrevet',
+  'lead_tabt',
 ]
 
 export default function KampagneLeadsPage() {
@@ -68,6 +84,8 @@ export default function KampagneLeadsPage() {
   const [bureaus, setBureaus] = useState<Bureau[]>([])
   const [selectedBureauId, setSelectedBureauId] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [sortByStatus, setSortByStatus] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   const supabase = createClient()
 
@@ -253,12 +271,19 @@ export default function KampagneLeadsPage() {
     }
   }
 
-  const filteredLeads = leads.filter(
-    (l) =>
-      l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.phone.includes(searchTerm) ||
-      l.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredLeads = leads
+    .filter(
+      (l) =>
+        l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.phone.includes(searchTerm) ||
+        l.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortByStatus) return 0
+      const aIndex = statusOrder.indexOf(a.status) === -1 ? 999 : statusOrder.indexOf(a.status)
+      const bIndex = statusOrder.indexOf(b.status) === -1 ? 999 : statusOrder.indexOf(b.status)
+      return aIndex - bIndex
+    })
 
   if (loading) {
     return (
@@ -285,24 +310,69 @@ export default function KampagneLeadsPage() {
         <p className="text-gray-500 dark:text-gray-400 mt-1">{leads.length} leads</p>
       </div>
 
-      {/* Search */}
+      {/* Search and View Toggle */}
       <Card>
         <CardContent className="py-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Søg efter lead..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
-            />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="relative max-w-md flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Søg efter lead..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input pl-10"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Sort Toggle */}
+              <button
+                onClick={() => setSortByStatus(!sortByStatus)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  sortByStatus
+                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                    : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                Status
+              </button>
+
+              {/* View Toggle */}
+              <div className="flex bg-gray-100 dark:bg-dark-hover rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  title="Liste visning"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-md transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                  title="Grid visning"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Leads Table */}
+      {/* Leads List/Grid */}
       <Card>
+        {/* List View */}
+        {viewMode === 'list' && (
         <Table>
           <TableHeader>
             <TableRow>
@@ -357,6 +427,84 @@ export default function KampagneLeadsPage() {
             )}
           </TableBody>
         </Table>
+        )}
+
+        {/* Grid View */}
+        {viewMode === 'grid' && (
+          <div className="p-6">
+            {filteredLeads.length === 0 ? (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                Ingen leads fundet
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredLeads.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="p-4 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          {lead.name}
+                        </h3>
+                        {lead.company && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {lead.company}
+                          </p>
+                        )}
+                      </div>
+                      <LeadStatusBadge status={lead.status} />
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <a
+                        href={`/saelger/ring-op?phone=${encodeURIComponent(lead.phone)}&lead_id=${lead.id}`}
+                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {lead.phone}
+                      </a>
+                      {lead.email && (
+                        <a
+                          href={`mailto:${lead.email}`}
+                          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                        >
+                          <Mail className="w-4 h-4" />
+                          {lead.email}
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Phone className="w-4 h-4 text-success" />}
+                        onClick={() => handleCall(lead)}
+                        title="Ring op"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Calendar className="w-4 h-4 text-primary-400" />}
+                        onClick={() => openMeetingModal(lead)}
+                        title="Book møde"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Edit3 className="w-4 h-4 text-gray-400" />}
+                        onClick={() => openLeadModal(lead)}
+                        title="Rediger"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Lead Edit Modal */}
