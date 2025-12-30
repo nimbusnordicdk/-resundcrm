@@ -564,7 +564,7 @@ export default function OpretLektionPage() {
         {/* Bottom Save Button */}
         <div className="mt-8 flex justify-end gap-4">
           <Link href="/admin/uddannelse">
-            <Button type="button" variant="outline">
+            <Button type="button" variant="secondary">
               Annuller
             </Button>
           </Link>
