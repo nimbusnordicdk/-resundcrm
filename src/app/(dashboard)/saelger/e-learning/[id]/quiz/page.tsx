@@ -252,13 +252,13 @@ export default function QuizPage() {
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-4">
               {!isPassed && (
-                <Button onClick={retryQuiz} variant="outline" className="flex-1">
+                <Button onClick={retryQuiz} variant="secondary" className="flex-1">
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Prøv igen
                 </Button>
               )}
               <Link href={`/saelger/e-learning/${params.id}`} className="flex-1">
-                <Button variant="outline" className="w-full">
+                <Button variant="secondary" className="w-full">
                   <BookOpen className="w-4 h-4 mr-2" />
                   Tilbage til lektion
                 </Button>

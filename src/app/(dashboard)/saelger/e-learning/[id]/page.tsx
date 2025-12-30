@@ -224,7 +224,7 @@ export default function LessonViewPage() {
         </div>
         {quiz && (
           <Link href={`/saelger/e-learning/${params.id}/quiz`}>
-            <Button variant="outline" size="sm">
+            <Button variant="secondary" size="sm">
               <HelpCircle className="w-4 h-4 mr-2" />
               Tag Quiz
             </Button>
@@ -273,7 +273,7 @@ export default function LessonViewPage() {
       {/* Navigation */}
       <div className="flex items-center justify-between mt-6">
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => goToPage(currentPage - 1)}
           disabled={currentPage === 1}
         >

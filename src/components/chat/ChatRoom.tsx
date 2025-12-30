@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Send, Plus, Users, Archive, ArchiveRestore } from 'lucide-react'
+import { Send, Plus, Users, Archive, ArchiveRestore, Wrench } from 'lucide-react'
 import { Button, Modal, ModalFooter, Input } from '@/components/ui'
 import toast from 'react-hot-toast'
 import type { ChatRoom, User } from '@/types/database'
@@ -121,9 +121,9 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
       .order('updated_at', { ascending: false })
 
     // Byg filter baseret på om der er room IDs
-    // Bureauer kan IKKE se team chat (kun sælgere og admin)
+    // Bureauer kan IKKE se team chat eller tech support (kun sælgere og admin)
     if (userRole === 'bureau') {
-      // Bureauer ser kun deres egne chats, ikke team chat
+      // Bureauer ser kun deres egne chats, ikke team chat eller tech support
       if (roomIds.length > 0) {
         query = query.in('id', roomIds)
       } else {
@@ -133,11 +133,11 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
         return
       }
     } else {
-      // Admin og sælgere kan se team chat + deres egne chats
+      // Admin og sælgere kan se team chat, tech support + deres egne chats
       if (roomIds.length > 0) {
-        query = query.or(`id.in.(${roomIds.join(',')}),is_team_chat.eq.true`)
+        query = query.or(`id.in.(${roomIds.join(',')}),is_team_chat.eq.true,is_tech_support.eq.true`)
       } else {
-        query = query.eq('is_team_chat', true)
+        query = query.or('is_team_chat.eq.true,is_tech_support.eq.true')
       }
     }
 
@@ -270,6 +270,7 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
   }
 
   function getRoomName(room: any) {
+    if (room.is_tech_support) return 'Tech Support'
     if (room.is_team_chat) return 'Øresund Team'
     if (room.name) return room.name
     const otherParticipants = room.participants
@@ -279,14 +280,37 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
     return otherParticipants || 'Chat'
   }
 
+  function getRoomDescription(room: any) {
+    if (room.is_tech_support) return 'Teknisk support - Admin & Sælgere'
+    if (room.is_team_chat) return 'Alle medarbejdere'
+    return room.participants
+      ?.map((p: any) => p.user?.full_name)
+      .filter(Boolean)
+      .join(', ') || 'Ingen deltagere'
+  }
+
+  // Check if room is a system chat (cannot be archived)
+  function isSystemChat(room: any) {
+    return room.is_team_chat || room.is_tech_support
+  }
+
   // Filter rooms based on archive status
   const filteredRooms = rooms.filter((room) => {
-    // Team chat should always be visible in active chats
-    if (room.is_team_chat) return !showArchived
+    // System chats (team chat, tech support) should always be visible in active chats
+    if (isSystemChat(room)) return !showArchived
     return showArchived ? room.is_archived : !room.is_archived
   })
 
-  const archivedCount = rooms.filter((r) => r.is_archived && !r.is_team_chat).length
+  // Sort rooms: Tech Support first, then Team Chat, then others
+  const sortedFilteredRooms = [...filteredRooms].sort((a, b) => {
+    if (a.is_tech_support && !b.is_tech_support) return -1
+    if (!a.is_tech_support && b.is_tech_support) return 1
+    if (a.is_team_chat && !b.is_team_chat) return -1
+    if (!a.is_team_chat && b.is_team_chat) return 1
+    return 0
+  })
+
+  const archivedCount = rooms.filter((r) => r.is_archived && !isSystemChat(r)).length
 
   function formatTime(dateString: string) {
     const date = new Date(dateString)
@@ -351,12 +375,12 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredRooms.length === 0 ? (
+          {sortedFilteredRooms.length === 0 ? (
             <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
               {showArchived ? 'Ingen arkiverede chats' : 'Ingen aktive chats'}
             </div>
           ) : (
-            filteredRooms.map((room) => (
+            sortedFilteredRooms.map((room) => (
             <button
               key={room.id}
               onClick={() => setSelectedRoom(room)}
@@ -364,8 +388,16 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
                 selectedRoom?.id === room.id ? 'bg-gray-100 dark:bg-dark-hover' : ''
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
-                {room.is_team_chat ? (
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                room.is_tech_support
+                  ? 'bg-orange-500'
+                  : room.is_team_chat
+                  ? 'bg-primary-600'
+                  : 'bg-primary-600'
+              }`}>
+                {room.is_tech_support ? (
+                  <Wrench className="w-5 h-5 text-white" />
+                ) : room.is_team_chat ? (
                   <Users className="w-5 h-5 text-white" />
                 ) : (
                   <span className="text-white font-medium">
@@ -376,13 +408,7 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 dark:text-white truncate">{getRoomName(room)}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {room.is_team_chat
-                    ? 'Alle medarbejdere'
-                    : room.participants
-                        ?.map((p: any) => p.user?.full_name)
-                        .filter(Boolean)
-                        .join(', ') || 'Ingen deltagere'
-                  }
+                  {getRoomDescription(room)}
                 </p>
               </div>
             </button>
@@ -397,19 +423,32 @@ export function ChatComponent({ userId, userRole }: ChatRoomProps) {
           <>
             {/* Chat Header */}
             <div className="p-4 border-b border-gray-200 dark:border-dark-border flex-shrink-0 flex items-start justify-between">
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">{getRoomName(selectedRoom)}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedRoom.is_team_chat
-                    ? 'Alle medarbejdere'
-                    : (selectedRoom as any).participants
-                        ?.map((p: any) => p.user?.full_name)
-                        .filter(Boolean)
-                        .join(', ') || 'Ingen deltagere'
-                  }
-                </p>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  (selectedRoom as any).is_tech_support
+                    ? 'bg-orange-500'
+                    : (selectedRoom as any).is_team_chat
+                    ? 'bg-primary-600'
+                    : 'bg-primary-600'
+                }`}>
+                  {(selectedRoom as any).is_tech_support ? (
+                    <Wrench className="w-5 h-5 text-white" />
+                  ) : (selectedRoom as any).is_team_chat ? (
+                    <Users className="w-5 h-5 text-white" />
+                  ) : (
+                    <span className="text-white font-medium">
+                      {getRoomName(selectedRoom).charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 dark:text-white">{getRoomName(selectedRoom)}</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {getRoomDescription(selectedRoom)}
+                  </p>
+                </div>
               </div>
-              {!selectedRoom.is_team_chat && (
+              {!isSystemChat(selectedRoom) && (
                 <button
                   onClick={() => toggleArchive(selectedRoom.id, (selectedRoom as any).is_archived || false)}
                   className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-500 dark:text-gray-400"

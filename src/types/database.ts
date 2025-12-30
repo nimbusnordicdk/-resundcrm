@@ -2,6 +2,8 @@ export type UserRole = 'admin' | 'saelger' | 'bureau';
 
 export type LeadStatus =
   | 'nyt_lead'
+  | 'kontaktet'
+  | 'genopkald'
   | 'kvalifikationskald_booket'
   | 'discoverykald_booket'
   | 'salgskald_booket'
@@ -174,6 +176,7 @@ export interface ChatRoom {
   name?: string;
   is_group: boolean;
   is_team_chat: boolean;
+  is_tech_support: boolean;
   is_archived: boolean;
   created_by: string;
   created_at: string;

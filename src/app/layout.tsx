@@ -5,6 +5,9 @@ import '@/styles/globals.css'
 export const metadata: Metadata = {
   title: 'Øresund Partners CRM',
   description: 'CRM system til Øresund Partners',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

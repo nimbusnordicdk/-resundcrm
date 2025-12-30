@@ -14,7 +14,7 @@ import {
   Button,
   Select,
 } from '@/components/ui'
-import { Download, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Download, Building2, ChevronLeft, ChevronRight, ListFilter } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Bureau, Invoice, Customer } from '@/types/database'
 
@@ -32,17 +32,26 @@ const monthNames = [
 export default function FakturaerPage() {
   const [bureausWithInvoices, setBureausWithInvoices] = useState<BureauWithInvoices[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [totalInvoiceCount, setTotalInvoiceCount] = useState(0)
+  const [showAll, setShowAll] = useState(false)
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchData()
-  }, [selectedMonth, selectedYear])
+  }, [selectedMonth, selectedYear, showAll])
 
   async function fetchData() {
     setLoading(true)
+
+    // Hent total antal fakturaer for at vide om der er data
+    const { count: invoiceCount } = await supabase
+      .from('invoices')
+      .select('*', { count: 'exact', head: true })
+
+    setTotalInvoiceCount(invoiceCount || 0)
 
     // Hent alle bureauer
     const { data: bureaus } = await supabase
@@ -55,7 +64,7 @@ export default function FakturaerPage() {
       return
     }
 
-    // For hver bureau, hent kunder med fakturaer for den valgte måned
+    // For hver bureau, hent kunder med fakturaer
     const bureausData = await Promise.all(
       bureaus.map(async (bureau) => {
         const { data: customers } = await supabase
@@ -66,12 +75,16 @@ export default function FakturaerPage() {
           `)
           .eq('bureau_id', bureau.id)
 
-        // Filtrer fakturaer for den valgte måned/år
+        // Filtrer fakturaer for den valgte måned/år (eller vis alle)
         const customersWithFilteredInvoices = (customers || []).map((customer: any) => ({
           ...customer,
-          invoices: (customer.invoices || []).filter(
-            (inv: Invoice) => inv.month === String(selectedMonth) && inv.year === selectedYear
-          )
+          invoices: showAll
+            ? (customer.invoices || [])
+            : (customer.invoices || []).filter((inv: Invoice) => {
+                const invMonth = parseInt(String(inv.month), 10)
+                const invYear = parseInt(String(inv.year), 10)
+                return invMonth === selectedMonth && invYear === selectedYear
+              })
         }))
 
         // Behold kun kunder med fakturaer i den valgte periode
@@ -103,21 +116,27 @@ export default function FakturaerPage() {
   }
 
   function goToPreviousMonth() {
+    if (showAll) return
     if (selectedMonth === 1) {
       setSelectedMonth(12)
       setSelectedYear(selectedYear - 1)
     } else {
-      setSelectedMonth(selectedMonth - 1)
+      setSelectedMonth((selectedMonth || 1) - 1)
     }
   }
 
   function goToNextMonth() {
+    if (showAll) return
     if (selectedMonth === 12) {
       setSelectedMonth(1)
       setSelectedYear(selectedYear + 1)
     } else {
-      setSelectedMonth(selectedMonth + 1)
+      setSelectedMonth((selectedMonth || 12) + 1)
     }
+  }
+
+  function toggleShowAll() {
+    setShowAll(!showAll)
   }
 
   if (loading) {
@@ -134,35 +153,65 @@ export default function FakturaerPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fakturaer</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Oversigt over bureauers fakturaer</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Oversigt over bureauers fakturaer
+            {totalInvoiceCount > 0 && (
+              <span className="ml-2 text-xs">({totalInvoiceCount} fakturaer totalt i databasen)</span>
+            )}
+          </p>
         </div>
 
-        {/* Month Selector */}
-        <div className="flex items-center gap-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-1">
+        <div className="flex items-center gap-3">
+          {/* Vis Alle Toggle */}
           <button
-            onClick={goToPreviousMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors"
+            onClick={toggleShowAll}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+              showAll
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'
+            }`}
           >
-            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ListFilter className="w-4 h-4" />
+            {showAll ? 'Vis alle' : 'Vis alle'}
           </button>
-          <div className="px-4 py-2 min-w-[160px] text-center">
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {monthNames[selectedMonth - 1]} {selectedYear}
-            </span>
+
+          {/* Month Selector */}
+          <div className={`flex items-center gap-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-1 ${showAll ? 'opacity-50' : ''}`}>
+            <button
+              onClick={goToPreviousMonth}
+              disabled={showAll}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+            <div className="px-4 py-2 min-w-[160px] text-center">
+              <span className="font-semibold text-gray-900 dark:text-white">
+                {showAll ? 'Alle perioder' : `${monthNames[(selectedMonth || 1) - 1]} ${selectedYear}`}
+              </span>
+            </div>
+            <button
+              onClick={goToNextMonth}
+              disabled={showAll}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
           </div>
-          <button
-            onClick={goToNextMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          </button>
         </div>
       </div>
 
       {bureausWithInvoices.length === 0 ? (
         <Card>
           <div className="p-8 text-center text-gray-400">
-            Ingen fakturaer for {monthNames[selectedMonth - 1]} {selectedYear}
+            {showAll
+              ? 'Ingen fakturaer fundet i databasen'
+              : `Ingen fakturaer for ${monthNames[(selectedMonth || 1) - 1]} ${selectedYear}`
+            }
+            {totalInvoiceCount === 0 && (
+              <p className="mt-2 text-sm">
+                Der er ingen fakturaer oprettet endnu. Fakturaer oprettes automatisk når kunder faktureres.
+              </p>
+            )}
           </div>
         </Card>
       ) : (

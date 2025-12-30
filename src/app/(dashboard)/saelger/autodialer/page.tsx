@@ -45,6 +45,7 @@ interface CallbackLead extends Lead {
   callback_date?: string
   callback_time?: string
   callback_notes?: string
+  updated_at?: string
 }
 
 type TabType = 'stamdata' | 'formaal' | 'indblik' | 'genopkald'
@@ -398,16 +399,31 @@ export default function AutodialerPage() {
 
     try {
       // Parse phone number - assume Danish if no country code
-      let fullNumber = currentLead.phone.trim()
-      if (!fullNumber.startsWith('+')) {
-        fullNumber = '+45' + fullNumber.replace(/\D/g, '')
+      let fullNumber = currentLead.phone.trim().replace(/\s/g, '')
+
+      // Remove any non-digit characters except leading +
+      if (fullNumber.startsWith('+')) {
+        fullNumber = '+' + fullNumber.slice(1).replace(/\D/g, '')
+      } else {
+        fullNumber = fullNumber.replace(/\D/g, '')
+        // Check if it already starts with country code 45
+        // Danish numbers are 8 digits, so 45 + 8 = 10 digits total
+        if (fullNumber.startsWith('45') && fullNumber.length >= 10) {
+          fullNumber = '+' + fullNumber
+        } else {
+          fullNumber = '+45' + fullNumber
+        }
       }
+
+      console.log('Dialing number:', fullNumber)
 
       const call = await deviceRef.current.connect({
         params: {
           To: fullNumber,
         },
       })
+
+      console.log('Call object created:', call)
 
       activeCallRef.current = call
 
@@ -539,39 +555,60 @@ export default function AutodialerPage() {
 
     if (!currentLead) return
 
-    let newStatus = currentLead.status
-    if (selectedResult === 'salg') {
-      newStatus = 'kunde'
-    } else if (selectedResult === 'ikke_interesseret' || selectedResult === 'forkert_nummer') {
-      newStatus = 'lead_tabt'
-    } else if (selectedResult === 'genopkald' || selectedResult === 'ring_tilbage') {
-      newStatus = 'genopkald'
-    } else if (selectedResult === 'telefonsvarer') {
-      newStatus = 'kontaktet'
-    }
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user) {
+        toast.error('Du skal være logget ind')
+        return
+      }
 
-    const { error } = await supabase
-      .from('leads')
-      .update({
+      let newStatus = currentLead.status
+      if (selectedResult === 'salg') {
+        // For salg, set status til kontrakt flow
+        newStatus = 'kvalifikationskald_booket'
+      } else if (selectedResult === 'ikke_interesseret' || selectedResult === 'forkert_nummer') {
+        newStatus = 'lead_tabt'
+      } else if (selectedResult === 'genopkald' || selectedResult === 'ring_tilbage') {
+        newStatus = 'genopkald'
+      } else if (selectedResult === 'telefonsvarer') {
+        newStatus = 'kontaktet'
+      }
+
+      const updateData: any = {
         status: newStatus,
-        notes: notes ? `${currentLead.notes || ''}\n\n[${new Date().toLocaleString('da-DK')}] ${selectedResult}: ${notes}`.trim() : currentLead.notes,
-      })
-      .eq('id', currentLead.id)
+        assigned_saelger_id: userData.user.id, // Altid tildel lead til nuværende sælger
+        updated_at: new Date().toISOString(),
+      }
 
-    if (error) {
-      toast.error('Kunne ikke gemme resultat')
-      return
+      // Only update notes if there are new notes
+      if (notes) {
+        updateData.notes = `${currentLead.notes || ''}\n\n[${new Date().toLocaleString('da-DK')}] ${selectedResult}: ${notes}`.trim()
+      }
+
+      const { error } = await supabase
+        .from('leads')
+        .update(updateData)
+        .eq('id', currentLead.id)
+
+      if (error) {
+        console.error('Error saving result:', error)
+        toast.error('Kunne ikke gemme resultat')
+        return
+      }
+
+      setSessionStats(prev => ({
+        ...prev,
+        salg: selectedResult === 'salg' ? prev.salg + 1 : prev.salg,
+        genopkald: selectedResult === 'genopkald' || selectedResult === 'ring_tilbage' ? prev.genopkald + 1 : prev.genopkald,
+        ikkeInteresseret: selectedResult === 'ikke_interesseret' ? prev.ikkeInteresseret + 1 : prev.ikkeInteresseret,
+      }))
+
+      goToNextLead()
+      toast.success('Resultat gemt')
+    } catch (err) {
+      console.error('Unexpected error saving result:', err)
+      toast.error('Uventet fejl ved gemning af resultat')
     }
-
-    setSessionStats(prev => ({
-      ...prev,
-      salg: selectedResult === 'salg' ? prev.salg + 1 : prev.salg,
-      genopkald: selectedResult === 'genopkald' || selectedResult === 'ring_tilbage' ? prev.genopkald + 1 : prev.genopkald,
-      ikkeInteresseret: selectedResult === 'ikke_interesseret' ? prev.ikkeInteresseret + 1 : prev.ikkeInteresseret,
-    }))
-
-    goToNextLead()
-    toast.success('Resultat gemt')
   }
 
   function goToNextLead() {
@@ -1202,7 +1239,7 @@ Ingen problem - tak for din tid. Ha' en god dag!`}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(lead.updated_at).toLocaleDateString('da-DK')}
+                                {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString('da-DK') : '-'}
                               </span>
                             </div>
                             {lead.notes && (

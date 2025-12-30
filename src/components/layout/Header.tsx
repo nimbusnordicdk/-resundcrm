@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -13,11 +13,7 @@ import {
   LogOut,
   FileText,
   MessageSquare,
-  Users,
-  Building2,
-  Target,
-  X,
-  Loader2,
+  Command,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import type { User } from '@/types/database'
@@ -33,14 +29,6 @@ interface Notification {
   link?: string
 }
 
-interface SearchResult {
-  id: string
-  type: 'customer' | 'lead' | 'user' | 'bureau'
-  title: string
-  subtitle?: string
-  link: string
-}
-
 interface HeaderProps {
   user: User | null
   onMenuClick: () => void
@@ -51,12 +39,7 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [showSearchResults, setShowSearchResults] = useState(false)
-  const [isSearching, setIsSearching] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -66,149 +49,11 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
         setShowDropdown(false)
         setShowNotifications(false)
       }
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchResults(false)
-      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  // Search functionality
-  const performSearch = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 2) {
-      setSearchResults([])
-      setShowSearchResults(false)
-      return
-    }
-
-    setIsSearching(true)
-    setShowSearchResults(true)
-
-    try {
-      const results: SearchResult[] = []
-      const searchTerm = `%${query}%`
-
-      // Search customers
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('id, name, email, phone')
-        .or(`name.ilike.${searchTerm},email.ilike.${searchTerm},phone.ilike.${searchTerm}`)
-        .limit(5)
-
-      customers?.forEach((c) => {
-        results.push({
-          id: c.id,
-          type: 'customer',
-          title: c.name,
-          subtitle: c.email || c.phone || undefined,
-          link: user?.role === 'bureau' ? `/bureau/kunder` : `/admin/bureauer`,
-        })
-      })
-
-      // Search leads
-      const { data: leads } = await supabase
-        .from('leads')
-        .select('id, name, company, phone, email')
-        .or(`name.ilike.${searchTerm},company.ilike.${searchTerm},phone.ilike.${searchTerm},email.ilike.${searchTerm}`)
-        .limit(5)
-
-      leads?.forEach((l) => {
-        results.push({
-          id: l.id,
-          type: 'lead',
-          title: l.name,
-          subtitle: l.company || l.email || undefined,
-          link: user?.role === 'admin' ? `/admin/kampagner` : `/${user?.role}/koldkampagner`,
-        })
-      })
-
-      // Search users (admin only)
-      if (user?.role === 'admin') {
-        const { data: users } = await supabase
-          .from('users')
-          .select('id, full_name, email, role')
-          .or(`full_name.ilike.${searchTerm},email.ilike.${searchTerm}`)
-          .limit(5)
-
-        users?.forEach((u) => {
-          results.push({
-            id: u.id,
-            type: 'user',
-            title: u.full_name,
-            subtitle: u.email,
-            link: `/admin/ansatte`,
-          })
-        })
-
-        // Search bureaus
-        const { data: bureaus } = await supabase
-          .from('bureaus')
-          .select('id, name, contact_person, email')
-          .or(`name.ilike.${searchTerm},contact_person.ilike.${searchTerm},email.ilike.${searchTerm}`)
-          .limit(5)
-
-        bureaus?.forEach((b) => {
-          results.push({
-            id: b.id,
-            type: 'bureau',
-            title: b.name,
-            subtitle: b.contact_person,
-            link: `/admin/bureauer`,
-          })
-        })
-      }
-
-      setSearchResults(results)
-    } catch (error) {
-      console.error('Search error:', error)
-    } finally {
-      setIsSearching(false)
-    }
-  }, [user?.role])
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      performSearch(searchQuery)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery, performSearch])
-
-  const handleSearchResultClick = (result: SearchResult) => {
-    router.push(result.link)
-    setSearchQuery('')
-    setSearchResults([])
-    setShowSearchResults(false)
-  }
-
-  const getSearchIcon = (type: SearchResult['type']) => {
-    switch (type) {
-      case 'customer':
-        return <Users className="w-4 h-4 text-green-500" />
-      case 'lead':
-        return <Target className="w-4 h-4 text-orange-500" />
-      case 'user':
-        return <Users className="w-4 h-4 text-blue-500" />
-      case 'bureau':
-        return <Building2 className="w-4 h-4 text-purple-500" />
-    }
-  }
-
-  const getSearchTypeLabel = (type: SearchResult['type']) => {
-    switch (type) {
-      case 'customer':
-        return 'Kunde'
-      case 'lead':
-        return 'Lead'
-      case 'user':
-        return 'Bruger'
-      case 'bureau':
-        return 'Bureau'
-    }
-  }
 
   // Fetch unread chat messages count
   useEffect(() => {
@@ -384,86 +229,31 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border">
+    <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10">
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Left Side */}
         <div className="flex items-center gap-4">
           <button
             onClick={onMenuClick}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors lg:hidden"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors lg:hidden"
           >
             <Menu className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
 
-          {/* Search */}
-          <div className="hidden md:flex items-center" ref={searchRef}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-              <input
-                type="text"
-                placeholder="Søg kunder, leads, brugere..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
-                className="w-80 pl-10 pr-10 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-input text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('')
-                    setSearchResults([])
-                    setShowSearchResults(false)
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Search Results Dropdown */}
-              {showSearchResults && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg z-50 max-h-96 overflow-y-auto">
-                  {isSearching ? (
-                    <div className="px-4 py-8 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
-                      <span className="ml-2 text-sm text-gray-500">Søger...</span>
-                    </div>
-                  ) : searchResults.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      Ingen resultater fundet for "{searchQuery}"
-                    </div>
-                  ) : (
-                    <div className="py-2">
-                      {searchResults.map((result) => (
-                        <button
-                          key={`${result.type}-${result.id}`}
-                          onClick={() => handleSearchResultClick(result)}
-                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors text-left"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-dark-input flex items-center justify-center flex-shrink-0">
-                            {getSearchIcon(result.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {result.title}
-                            </p>
-                            {result.subtitle && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                {result.subtitle}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-dark-input text-gray-600 dark:text-gray-400">
-                            {getSearchTypeLabel(result.type)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Search Trigger - Opens Command Palette */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))
+            }}
+            className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all group"
+          >
+            <Search className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400" />
+            <span className="text-sm text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-400 w-48 text-left">Søg...</span>
+            <kbd className="flex items-center gap-0.5 px-2 py-0.5 bg-white dark:bg-white/5 rounded text-xs text-gray-500 dark:text-gray-600 border border-gray-200 dark:border-white/10">
+              <Command className="w-3 h-3" />
+              K
+            </kbd>
+          </button>
         </div>
 
         {/* Right Side */}
@@ -478,22 +268,22 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
                 setShowNotifications(!showNotifications)
                 setShowDropdown(false)
               }}
-              className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+              className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
             >
               <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-primary-500 rounded-full border-2 border-white dark:border-slate-900" />
               )}
             </button>
 
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg z-50">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+              <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900/95 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-white/10 shadow-2xl z-50">
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900 dark:text-white">Notifikationer</h3>
                   {unreadCount > 0 && (
                     <button
                       onClick={markAllAsRead}
-                      className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
                       Marker alle som læst
                     </button>
@@ -509,14 +299,14 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
                       <button
                         key={notification.id}
                         onClick={() => handleNotificationClick(notification)}
-                        className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors text-left ${
-                          !notification.read ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''
+                        className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left ${
+                          !notification.read ? 'bg-primary-50 dark:bg-primary-500/10' : ''
                         }`}
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                           notification.type === 'chat'
-                            ? 'bg-blue-100 dark:bg-blue-900/30'
-                            : 'bg-green-100 dark:bg-green-900/30'
+                            ? 'bg-blue-100 dark:bg-blue-500/20'
+                            : 'bg-green-100 dark:bg-green-500/20'
                         }`}>
                           {notification.type === 'chat' ? (
                             <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -536,7 +326,7 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
                           </p>
                         </div>
                         {!notification.read && (
-                          <div className="w-2 h-2 bg-primary-600 rounded-full flex-shrink-0 mt-2" />
+                          <div className="w-2 h-2 bg-primary-500 dark:bg-primary-400 rounded-full flex-shrink-0 mt-2" />
                         )}
                       </button>
                     ))
@@ -553,17 +343,17 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
                 setShowDropdown(!showDropdown)
                 setShowNotifications(false)
               }}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+              className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-gradient-to-br dark:from-primary-500/20 dark:to-primary-600/10 flex items-center justify-center border border-primary-200 dark:border-white/10">
                 {user?.avatar_url ? (
                   <img
                     src={user.avatar_url}
                     alt={user.full_name}
-                    className="w-full h-full rounded-full object-cover"
+                    className="w-full h-full rounded-lg object-cover"
                   />
                 ) : (
-                  <span className="text-white text-sm font-medium">
+                  <span className="text-primary-600 dark:text-primary-400 text-sm font-semibold">
                     {user?.full_name?.charAt(0).toUpperCase() || 'U'}
                   </span>
                 )}
@@ -576,23 +366,23 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
                   {user?.role ? getRoleName(user.role) : ''}
                 </p>
               </div>
-              <ChevronDown className="w-4 h-4 text-gray-400 hidden md:block" />
+              <ChevronDown className="w-4 h-4 text-gray-500 hidden md:block" />
             </button>
 
             {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg z-50">
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900/95 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-white/10 shadow-2xl z-50 overflow-hidden">
                 <Link
                   href="/indstillinger"
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+                  className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors"
                   onClick={() => setShowDropdown(false)}
                 >
                   <Settings className="w-4 h-4" />
                   Indstillinger
                 </Link>
-                <hr className="my-1 border-gray-200 dark:border-dark-border" />
+                <hr className="border-gray-200 dark:border-white/10" />
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-danger-light hover:text-danger w-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+                  className="flex items-center gap-2 px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 w-full hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
                   Log ud
