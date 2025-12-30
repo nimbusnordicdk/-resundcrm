@@ -256,6 +256,7 @@ export default function FakturaerPage() {
                   <TableHead>Kunde</TableHead>
                   <TableHead>Måned</TableHead>
                   <TableHead>Beløb</TableHead>
+                  <TableHead>Kommission ({bureau.commission_percent}%)</TableHead>
                   <TableHead>Faktura</TableHead>
                 </TableRow>
               </TableHeader>
@@ -272,6 +273,9 @@ export default function FakturaerPage() {
                         </TableCell>
                         <TableCell>
                           {invoice.amount.toLocaleString('da-DK')} kr
+                        </TableCell>
+                        <TableCell className="font-semibold text-primary-600 dark:text-primary-400">
+                          {Math.round(invoice.amount * (bureau.commission_percent / 100)).toLocaleString('da-DK')} kr
                         </TableCell>
                         <TableCell>
                           <Button
@@ -290,7 +294,7 @@ export default function FakturaerPage() {
                       <TableCell className="font-medium text-gray-900 dark:text-white">
                         {customer.name}
                       </TableCell>
-                      <TableCell colSpan={3} className="text-gray-500">
+                      <TableCell colSpan={4} className="text-gray-500">
                         Ingen fakturaer endnu
                       </TableCell>
                     </TableRow>
