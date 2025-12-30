@@ -7,6 +7,7 @@ import SignatureCanvas from 'react-signature-canvas'
 import { Button } from '@/components/ui'
 import { CheckCircle, AlertCircle, FileText, X, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
+import DOMPurify from 'dompurify'
 import type { Contract } from '@/types/database'
 
 interface Party {
@@ -254,7 +255,7 @@ export default function KontraktPage() {
           <div className="p-6">
             <div
               className="wysiwyg-editor prose dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: contract.content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contract.content) }}
             />
           </div>
 

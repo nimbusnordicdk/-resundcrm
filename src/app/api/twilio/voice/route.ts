@@ -3,12 +3,51 @@ import twilio from 'twilio'
 
 const VoiceResponse = twilio.twiml.VoiceResponse
 
+// Validate Twilio webhook signature
+function validateTwilioSignature(
+  request: NextRequest,
+  formData: FormData
+): boolean {
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+
+  // Skip validation in development if no auth token
+  if (!authToken) {
+    console.warn('TWILIO_AUTH_TOKEN not configured - skipping signature validation')
+    return process.env.NODE_ENV === 'development'
+  }
+
+  const signature = request.headers.get('X-Twilio-Signature')
+  if (!signature) {
+    console.error('Missing X-Twilio-Signature header')
+    return false
+  }
+
+  // Get the full URL
+  const url = request.url
+
+  // Convert FormData to object for validation
+  const params: Record<string, string> = {}
+  formData.forEach((value, key) => {
+    params[key] = value.toString()
+  })
+
+  return twilio.validateRequest(authToken, signature, url, params)
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Clone request to read formData twice (once for validation, once for processing)
+    const formData = await request.formData()
+
+    // Validate Twilio signature
+    if (!validateTwilioSignature(request, formData)) {
+      console.error('Invalid Twilio signature - rejecting request')
+      return new NextResponse('Forbidden', { status: 403 })
+    }
+
     const twiml = new VoiceResponse()
 
     // Parse form data from Twilio
-    const formData = await request.formData()
     const to = formData.get('To') as string
     const from = formData.get('From') as string
 

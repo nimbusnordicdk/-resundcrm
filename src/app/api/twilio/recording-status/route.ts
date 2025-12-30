@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import twilio from 'twilio'
 
 // Transcribe recording using OpenAI Whisper
 async function transcribeRecording(
@@ -56,9 +57,46 @@ async function transcribeRecording(
   }
 }
 
+// Validate Twilio webhook signature
+function validateTwilioSignature(
+  request: NextRequest,
+  formData: FormData
+): boolean {
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+
+  // Skip validation in development if no auth token
+  if (!authToken) {
+    console.warn('TWILIO_AUTH_TOKEN not configured - skipping signature validation')
+    return process.env.NODE_ENV === 'development'
+  }
+
+  const signature = request.headers.get('X-Twilio-Signature')
+  if (!signature) {
+    console.error('Missing X-Twilio-Signature header')
+    return false
+  }
+
+  // Get the full URL
+  const url = request.url
+
+  // Convert FormData to object for validation
+  const params: Record<string, string> = {}
+  formData.forEach((value, key) => {
+    params[key] = value.toString()
+  })
+
+  return twilio.validateRequest(authToken, signature, url, params)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
+
+    // Validate Twilio signature
+    if (!validateTwilioSignature(request, formData)) {
+      console.error('Invalid Twilio signature - rejecting recording callback')
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const callSid = formData.get('CallSid') as string
     const recordingSid = formData.get('RecordingSid') as string

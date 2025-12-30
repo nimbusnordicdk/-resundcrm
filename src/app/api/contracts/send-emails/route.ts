@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const supabase = createClient(
+// Service role client for fetching contract data (after auth check)
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -23,14 +25,39 @@ interface Party {
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentication check - only admins can send contract emails
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user is admin
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (userData?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Forbidden - Admin access required' },
+        { status: 403 }
+      )
+    }
+
     const { contractId, partyId } = await request.json()
 
     if (!contractId) {
       return NextResponse.json({ error: 'Contract ID required' }, { status: 400 })
     }
 
-    // Fetch contract
-    const { data: contract, error } = await supabase
+    // Fetch contract using admin client (auth already verified above)
+    const { data: contract, error } = await supabaseAdmin
       .from('contracts')
       .select('*')
       .eq('id', contractId)

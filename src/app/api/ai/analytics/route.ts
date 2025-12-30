@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 // Fetch all relevant data from Supabase for AI analysis
 async function fetchAnalyticsData() {
@@ -263,6 +264,31 @@ async function fetchAnalyticsData() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentication check - only admins can access analytics
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user is admin
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (userData?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Forbidden - Admin access required' },
+        { status: 403 }
+      )
+    }
+
     const openaiApiKey = process.env.OPENAI_API_KEY
 
     if (!openaiApiKey) {
