@@ -33,7 +33,9 @@ export async function updateSession(request: NextRequest) {
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
-    !request.nextUrl.pathname.startsWith('/api/twilio')
+    !request.nextUrl.pathname.startsWith('/api/twilio') &&
+    !request.nextUrl.pathname.startsWith('/kontrakt') &&
+    !request.nextUrl.pathname.startsWith('/api/contracts/public')
   ) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
