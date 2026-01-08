@@ -29,6 +29,7 @@ export interface User {
   commission_percent?: number;
   bureau_id?: string;
   avatar_url?: string;
+  temp_password?: string;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +44,8 @@ export interface Bureau {
   email: string;
   website?: string;
   commission_percent: number;
+  user_id?: string;
+  temp_password?: string;
   created_at: string;
   updated_at: string;
 }
@@ -98,6 +101,8 @@ export interface Lead {
   note5?: string;
   status: LeadStatus;
   assigned_saelger_id?: string;
+  owned_by?: string;
+  owned_at?: string;
   lost_reason?: string;
   created_at: string;
   updated_at: string;

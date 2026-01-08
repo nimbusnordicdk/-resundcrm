@@ -24,6 +24,8 @@ import {
   UserCheck,
   UserX,
   FileText,
+  Edit3,
+  Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Meeting } from '@/types/database'
@@ -42,6 +44,18 @@ export default function MoederPage() {
     google_meet_link: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editData, setEditData] = useState({
+    id: '',
+    title: '',
+    description: '',
+    date: '',
+    time: '',
+    google_meet_link: '',
+  })
+  const [deleting, setDeleting] = useState(false)
+  const [showDayModal, setShowDayModal] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
   const supabase = createClient()
 
@@ -177,6 +191,71 @@ export default function MoederPage() {
     setShowMeetingModal(true)
   }
 
+  function openEditModal(meeting: Meeting) {
+    const dateOnly = meeting.date.split('T')[0]
+    setEditData({
+      id: meeting.id,
+      title: meeting.title,
+      description: meeting.description || '',
+      date: dateOnly,
+      time: meeting.time.slice(0, 5),
+      google_meet_link: meeting.google_meet_link || '',
+    })
+    setShowMeetingModal(false)
+    setShowEditModal(true)
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+
+    try {
+      const { error } = await supabase
+        .from('meetings')
+        .update({
+          title: editData.title,
+          description: editData.description || null,
+          date: editData.date,
+          time: editData.time,
+          google_meet_link: editData.google_meet_link || null,
+        })
+        .eq('id', editData.id)
+
+      if (error) throw error
+
+      toast.success('Møde opdateret!')
+      setShowEditModal(false)
+      fetchMeetings()
+    } catch (error: any) {
+      toast.error(error.message || 'Kunne ikke opdatere møde')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleDeleteMeeting(meetingId: string) {
+    if (!confirm('Er du sikker på at du vil slette dette møde?')) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from('meetings')
+        .delete()
+        .eq('id', meetingId)
+
+      if (error) throw error
+
+      toast.success('Møde slettet!')
+      setShowMeetingModal(false)
+      setSelectedMeeting(null)
+      fetchMeetings()
+    } catch (error: any) {
+      toast.error(error.message || 'Kunne ikke slette møde')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   function prevMonth() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
   }
@@ -287,13 +366,17 @@ export default function MoederPage() {
                 currentDate.getFullYear() === today.getFullYear()
 
               return (
-                <div
+                <button
                   key={day}
-                  className={`h-24 p-2 rounded-lg border ${
+                  onClick={() => {
+                    setSelectedDay(day)
+                    setShowDayModal(true)
+                  }}
+                  className={`h-24 p-2 rounded-lg border text-left ${
                     isToday
                       ? 'border-primary-500 bg-primary-600/10'
                       : 'border-gray-200 dark:border-dark-border'
-                  } hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors`}
+                  } hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors cursor-pointer`}
                 >
                   <span
                     className={`text-sm font-medium ${
@@ -304,7 +387,7 @@ export default function MoederPage() {
                   </span>
                   <div className="mt-1 space-y-1 overflow-hidden">
                     {dayMeetings.slice(0, 2).map((meeting) => (
-                      <button
+                      <div
                         key={meeting.id}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -322,7 +405,7 @@ export default function MoederPage() {
                         title={meeting.title}
                       >
                         {meeting.time.slice(0, 5)} {meeting.title}
-                      </button>
+                      </div>
                     ))}
                     {dayMeetings.length > 2 && (
                       <div className="text-xs text-gray-500">
@@ -330,7 +413,7 @@ export default function MoederPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -635,14 +718,233 @@ export default function MoederPage() {
               )}
 
               <ModalFooter>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    {canChangeStatus && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={<Edit3 className="w-4 h-4" />}
+                          onClick={() => openEditModal(selectedMeeting)}
+                        >
+                          Rediger
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={<Trash2 className="w-4 h-4" />}
+                          onClick={() => handleDeleteMeeting(selectedMeeting.id)}
+                          loading={deleting}
+                        >
+                          Slet
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowMeetingModal(false)
+                      setSelectedMeeting(null)
+                    }}
+                  >
+                    Luk
+                  </Button>
+                </div>
+              </ModalFooter>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* Edit Meeting Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Rediger Møde"
+        size="md"
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <Input
+            label="Møde Navn"
+            value={editData.title}
+            onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+            required
+            placeholder="Indtast møde navn"
+          />
+
+          <TextArea
+            label="Beskrivelse"
+            value={editData.description}
+            onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+            placeholder="Valgfri beskrivelse..."
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Dato"
+              type="date"
+              value={editData.date}
+              onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+              required
+            />
+            <Input
+              label="Tid"
+              type="time"
+              value={editData.time}
+              onChange={(e) => setEditData({ ...editData, time: e.target.value })}
+              required
+            />
+          </div>
+
+          <Input
+            label="Google Meet Link"
+            type="url"
+            value={editData.google_meet_link}
+            onChange={(e) => setEditData({ ...editData, google_meet_link: e.target.value })}
+            placeholder="https://meet.google.com/..."
+          />
+
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowEditModal(false)}
+            >
+              Annuller
+            </Button>
+            <Button type="submit" loading={submitting}>
+              Gem Ændringer
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
+
+      {/* Day Meetings Modal */}
+      <Modal
+        isOpen={showDayModal}
+        onClose={() => {
+          setShowDayModal(false)
+          setSelectedDay(null)
+        }}
+        title={selectedDay ? `Møder d. ${selectedDay}. ${monthNames[currentDate.getMonth()]}` : 'Dagens Møder'}
+        size="md"
+      >
+        {selectedDay && (() => {
+          const dayMeetings = getMeetingsForDay(selectedDay).sort((a, b) =>
+            a.time.localeCompare(b.time)
+          )
+          const selectedDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`
+
+          return (
+            <div className="space-y-4">
+              {dayMeetings.length === 0 ? (
+                <div className="text-center py-8">
+                  <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-gray-500 dark:text-gray-400">Ingen møder denne dag</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {dayMeetings.map((meeting) => (
+                    <button
+                      key={meeting.id}
+                      onClick={() => {
+                        setShowDayModal(false)
+                        setSelectedDay(null)
+                        openMeetingDetails(meeting)
+                      }}
+                      className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                        meeting.attendance_status === 'cancelled'
+                          ? 'bg-gray-50 dark:bg-dark-hover/50 border-gray-200 dark:border-dark-border opacity-60'
+                          : meeting.attendance_status === 'show_up'
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
+                          : meeting.attendance_status === 'no_show'
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                          : 'bg-gray-50 dark:bg-dark-hover border-gray-200 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-border'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          meeting.attendance_status === 'show_up'
+                            ? 'bg-green-100 dark:bg-green-900/30'
+                            : meeting.attendance_status === 'no_show'
+                            ? 'bg-red-100 dark:bg-red-900/30'
+                            : meeting.attendance_status === 'cancelled'
+                            ? 'bg-gray-200 dark:bg-dark-border'
+                            : 'bg-primary-100 dark:bg-primary-900/30'
+                        }`}>
+                          <Clock className={`w-5 h-5 ${
+                            meeting.attendance_status === 'show_up'
+                              ? 'text-green-600 dark:text-green-400'
+                              : meeting.attendance_status === 'no_show'
+                              ? 'text-red-600 dark:text-red-400'
+                              : meeting.attendance_status === 'cancelled'
+                              ? 'text-gray-400'
+                              : 'text-primary-600 dark:text-primary-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {meeting.time.slice(0, 5)}
+                            </span>
+                            {meeting.attendance_status && meeting.attendance_status !== 'pending' && (
+                              <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                                meeting.attendance_status === 'show_up'
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                  : meeting.attendance_status === 'no_show'
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                  : 'bg-gray-200 dark:bg-dark-border text-gray-600 dark:text-gray-400'
+                              }`}>
+                                {meeting.attendance_status === 'show_up' ? 'Afholdt' :
+                                 meeting.attendance_status === 'no_show' ? 'No-show' : 'Aflyst'}
+                              </span>
+                            )}
+                          </div>
+                          <p className={`font-medium ${
+                            meeting.attendance_status === 'cancelled'
+                              ? 'text-gray-500 dark:text-gray-400 line-through'
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {meeting.title}
+                          </p>
+                          {meeting.google_meet_link && meeting.attendance_status !== 'cancelled' && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-primary-600 dark:text-primary-400">
+                              <Video className="w-3 h-3" />
+                              <span>Google Meet</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <ModalFooter>
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    setShowMeetingModal(false)
-                    setSelectedMeeting(null)
+                    setShowDayModal(false)
+                    setSelectedDay(null)
                   }}
                 >
                   Luk
+                </Button>
+                <Button
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={() => {
+                    setFormData({
+                      ...formData,
+                      date: selectedDateStr,
+                    })
+                    setShowDayModal(false)
+                    setSelectedDay(null)
+                    setShowModal(true)
+                  }}
+                >
+                  Nyt Møde
                 </Button>
               </ModalFooter>
             </div>

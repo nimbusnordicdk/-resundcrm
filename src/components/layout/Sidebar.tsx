@@ -25,6 +25,7 @@ import {
   BookOpen,
   LogOut,
   Settings,
+  Mail,
 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
@@ -60,6 +61,7 @@ const saelgerNav: NavItem[] = [
   { title: 'Dashboard', href: '/saelger', icon: LayoutDashboard },
   { title: 'ØresundAI', href: '/saelger/ai', icon: Sparkles },
   { title: 'Øresund Stats', href: '/saelger/stats', icon: BarChart3 },
+  { title: 'Email', href: '/saelger/email', icon: Mail },
   { title: 'Møder', href: '/saelger/moeder', icon: Calendar },
   { title: 'Koldkampagner', href: '/saelger/koldkampagner', icon: Target },
   { title: 'Bureau Kampagner', href: '/saelger/bureaukampagner', icon: Building2 },

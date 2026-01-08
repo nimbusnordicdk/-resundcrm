@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import SignatureCanvas from 'react-signature-canvas'
 import { Button } from '@/components/ui'
 import { CheckCircle, AlertCircle, FileText, X, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DOMPurify from 'dompurify'
-import type { Contract } from '@/types/database'
 
 interface Party {
   id: string
@@ -16,69 +14,57 @@ interface Party {
   email: string
   identifier: string
   identifier_type: 'cvr' | 'cpr'
-  public_link: string
+  public_link?: string
   signed: boolean
   signed_at: string | null
-  signature_data: string | null
+  signature_data?: string | null
+}
+
+interface ContractData {
+  id: string
+  name: string
+  content: string
+  parties: Party[]
+  status: string
 }
 
 export default function KontraktPage() {
   const params = useParams()
-  const [contract, setContract] = useState<Contract | null>(null)
+  const [contract, setContract] = useState<ContractData | null>(null)
   const [currentParty, setCurrentParty] = useState<Party | null>(null)
   const [loading, setLoading] = useState(true)
   const [signing, setSigning] = useState(false)
   const [signed, setSigned] = useState(false)
   const signatureRef = useRef<SignatureCanvas>(null)
 
-  const supabase = createClient()
-
   useEffect(() => {
     fetchContract()
   }, [params.link])
 
   async function fetchContract() {
-    // First, try to find the contract where public_link matches (backwards compatibility)
-    let { data, error } = await supabase
-      .from('contracts')
-      .select('*')
-      .eq('public_link', params.link)
-      .single()
+    try {
+      const response = await fetch(`/api/contracts/public/${params.link}`)
 
-    if (error || !data) {
-      // If not found, search for the contract by party's public_link
-      const { data: allContracts } = await supabase
-        .from('contracts')
-        .select('*')
+      if (!response.ok) {
+        setContract(null)
+        setLoading(false)
+        return
+      }
 
-      if (allContracts) {
-        for (const c of allContracts) {
-          const parties = c.parties as Party[]
-          const party = parties?.find((p) => p.public_link === params.link)
-          if (party) {
-            data = c
-            setCurrentParty(party)
-            if (party.signed) {
-              setSigned(true)
-            }
-            break
-          }
-        }
+      const data = await response.json()
+
+      setContract(data.contract)
+      setCurrentParty(data.currentParty)
+
+      if (data.currentParty?.signed) {
+        setSigned(true)
       }
-    } else {
-      // For backwards compatibility, use first party
-      const parties = data.parties as Party[]
-      if (parties?.length > 0) {
-        const party = parties.find((p) => p.public_link === params.link) || parties[0]
-        setCurrentParty(party)
-        if (party.signed) {
-          setSigned(true)
-        }
-      }
+    } catch (error) {
+      console.error('Error fetching contract:', error)
+      setContract(null)
+    } finally {
+      setLoading(false)
     }
-
-    setContract(data || null)
-    setLoading(false)
   }
 
   function clearSignature() {
@@ -95,47 +81,31 @@ export default function KontraktPage() {
     setSigning(true)
 
     try {
-      // Hent IP adresse
-      const ipResponse = await fetch('https://api.ipify.org?format=json')
-      const { ip } = await ipResponse.json()
-
       const signatureData = signatureRef.current?.toDataURL()
 
-      // Update the party's signature in the parties array
-      const updatedParties = (contract.parties as Party[]).map((party) =>
-        party.id === currentParty.id
-          ? {
-              ...party,
-              signed: true,
-              signed_at: new Date().toISOString(),
-              signature_data: signatureData,
-            }
-          : party
-      )
+      const response = await fetch(`/api/contracts/public/${params.link}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatureData }),
+      })
 
-      // Check if all parties have signed
-      const allSigned = updatedParties.every((p) => p.signed)
+      const data = await response.json()
 
-      const { error } = await supabase
-        .from('contracts')
-        .update({
-          parties: updatedParties,
-          status: allSigned ? 'underskrevet' : 'afventer',
-          // Only update these if all signed (for PDF generation)
-          ...(allSigned && {
-            signed_at: new Date().toISOString(),
-            signer_ip: ip,
-            signer_name: currentParty.name,
-          }),
-        })
-        .eq('id', contract.id)
+      if (!response.ok) {
+        throw new Error(data.error || 'Kunne ikke underskrive')
+      }
 
-      if (error) throw error
+      // Update local state
+      setCurrentParty({
+        ...currentParty,
+        signed: true,
+        signed_at: data.signedAt,
+      })
 
       setSigned(true)
       toast.success('Kontrakt underskrevet!')
-    } catch (error) {
-      toast.error('Kunne ikke underskrive kontrakt')
+    } catch (error: any) {
+      toast.error(error.message || 'Kunne ikke underskrive kontrakt')
     } finally {
       setSigning(false)
     }
@@ -143,8 +113,8 @@ export default function KontraktPage() {
 
   function getOtherPartiesStatus(): { total: number; signed: number } {
     if (!contract) return { total: 0, signed: 0 }
-    const parties = contract.parties as Party[]
-    const otherParties = parties?.filter((p) => p.id !== currentParty?.id) || []
+    const parties = contract.parties || []
+    const otherParties = parties.filter((p) => p.id !== currentParty?.id)
     return {
       total: otherParties.length,
       signed: otherParties.filter((p) => p.signed).length,
@@ -266,12 +236,12 @@ export default function KontraktPage() {
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Parter i kontrakten</h3>
             </div>
             <div className="space-y-2">
-              {(contract.parties as Party[])?.map((party) => (
+              {contract.parties?.map((party) => (
                 <div key={party.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`text-gray-900 dark:text-white ${party.id === currentParty.id ? 'font-semibold' : ''}`}>
+                    <span className={`text-gray-900 dark:text-white ${party.id === currentParty?.id ? 'font-semibold' : ''}`}>
                       {party.name}
-                      {party.id === currentParty.id && (
+                      {party.id === currentParty?.id && (
                         <span className="text-primary-600 dark:text-primary-400 text-sm ml-2">(dig)</span>
                       )}
                     </span>

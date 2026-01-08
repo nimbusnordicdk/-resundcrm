@@ -34,6 +34,8 @@ import {
   LayoutGrid,
   List,
   Mail,
+  UserPlus,
+  Lock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Lead, Campaign, Bureau } from '@/types/database'
@@ -86,6 +88,8 @@ export default function KampagneLeadsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [sortByStatus, setSortByStatus] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [claimingLead, setClaimingLead] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -95,6 +99,10 @@ export default function KampagneLeadsPage() {
   }, [params.id])
 
   async function fetchData() {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    setCurrentUserId(user?.id || null)
+
     const { data: campaignData } = await supabase
       .from('campaigns')
       .select('*')
@@ -104,15 +112,44 @@ export default function KampagneLeadsPage() {
     if (campaignData) {
       setCampaign(campaignData)
 
+      // Only show leads that are either:
+      // 1. Not owned by anyone (owned_by is null)
+      // 2. Owned by the current user
       const { data: leadsData } = await supabase
         .from('leads')
         .select('*')
         .eq('campaign_id', params.id)
+        .or(`owned_by.is.null,owned_by.eq.${user?.id}`)
         .order('created_at', { ascending: false })
 
       setLeads(leadsData || [])
     }
     setLoading(false)
+  }
+
+  async function claimLead(lead: Lead) {
+    if (!currentUserId) return
+    setClaimingLead(lead.id)
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          owned_by: currentUserId,
+          owned_at: new Date().toISOString(),
+        })
+        .eq('id', lead.id)
+        .is('owned_by', null) // Only claim if not already owned
+
+      if (error) throw error
+
+      toast.success('Du ejer nu dette lead!')
+      fetchData()
+    } catch (error) {
+      toast.error('Kunne ikke tage ejerskab af lead')
+    } finally {
+      setClaimingLead(null)
+    }
   }
 
   async function fetchBureaus() {
@@ -142,7 +179,22 @@ export default function KampagneLeadsPage() {
   }
 
   async function handleCall(lead: Lead) {
-    // Her ville vi integrere med Twilio
+    // Claim the lead if not already owned
+    if (!lead.owned_by && currentUserId) {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          owned_by: currentUserId,
+          owned_at: new Date().toISOString(),
+        })
+        .eq('id', lead.id)
+        .is('owned_by', null)
+
+      if (error) {
+        console.error('Could not claim lead:', error)
+      }
+    }
+
     toast.success(`Ringer til ${lead.phone}...`)
     router.push(`/saelger/ring-op?phone=${encodeURIComponent(lead.phone)}&lead_id=${lead.id}`)
   }
@@ -399,12 +451,30 @@ export default function KampagneLeadsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
+                      {!lead.owned_by ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={claimingLead === lead.id ? undefined : <UserPlus className="w-4 h-4" />}
+                          onClick={() => claimLead(lead)}
+                          loading={claimingLead === lead.id}
+                          title="Start Lead - Tag ejerskab"
+                        >
+                          Start
+                        </Button>
+                      ) : lead.owned_by === currentUserId ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 px-2 py-1 bg-green-50 dark:bg-green-900/20 rounded">
+                          <Lock className="w-3 h-3" />
+                          Dit lead
+                        </span>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="sm"
                         icon={<Phone className="w-4 h-4 text-success" />}
                         onClick={() => handleCall(lead)}
                         title="Ring op"
+                        disabled={!lead.owned_by || lead.owned_by !== currentUserId}
                       />
                       <Button
                         variant="ghost"
@@ -477,12 +547,29 @@ export default function KampagneLeadsPage() {
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
+                      {!lead.owned_by ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={claimingLead === lead.id ? undefined : <UserPlus className="w-4 h-4" />}
+                          onClick={() => claimLead(lead)}
+                          loading={claimingLead === lead.id}
+                        >
+                          Start
+                        </Button>
+                      ) : lead.owned_by === currentUserId ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 px-2 py-1 bg-green-50 dark:bg-green-900/20 rounded">
+                          <Lock className="w-3 h-3" />
+                          Dit
+                        </span>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="sm"
                         icon={<Phone className="w-4 h-4 text-success" />}
                         onClick={() => handleCall(lead)}
                         title="Ring op"
+                        disabled={!lead.owned_by || lead.owned_by !== currentUserId}
                       />
                       <Button
                         variant="ghost"

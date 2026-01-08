@@ -64,30 +64,25 @@ export default function AnsattePage() {
     setSubmitting(true)
 
     try {
-      // Opret auth bruger
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
+      const response = await fetch('/api/users/create-saelger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          full_name: formData.full_name,
+          phone: formData.phone || null,
+          cpr_nr: formData.cpr_nr || null,
+          commission_percent: parseFloat(formData.commission_percent),
+        }),
       })
 
-      if (authError) throw authError
+      const data = await response.json()
 
-      if (!authData.user) throw new Error('Kunne ikke oprette bruger')
+      if (!response.ok) {
+        throw new Error(data.error || 'Kunne ikke oprette sælger')
+      }
 
-      // Opret bruger i users tabellen
-      const { error: userError } = await supabase.from('users').insert({
-        id: authData.user.id,
-        email: formData.email,
-        full_name: formData.full_name,
-        phone: formData.phone || null,
-        cpr_nr: formData.cpr_nr || null,
-        commission_percent: parseFloat(formData.commission_percent),
-        role: 'saelger',
-      })
-
-      if (userError) throw userError
-
-      toast.success('Sælger oprettet!')
+      toast.success('Sælger oprettet! Velkomst-email er sendt.')
       setShowModal(false)
       setFormData({
         email: '',
@@ -232,15 +227,9 @@ export default function AnsattePage() {
             placeholder="email@oresundpartners.dk"
           />
 
-          <Input
-            label="Adgangskode"
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
-            placeholder="Minimum 6 tegn"
-            minLength={6}
-          />
+          <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2">
+            En midlertidig adgangskode vil blive genereret og sendt til sælgeren via email.
+          </p>
 
           <Input
             label="CPR Nr"

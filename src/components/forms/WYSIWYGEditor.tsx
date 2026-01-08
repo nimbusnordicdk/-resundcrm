@@ -28,12 +28,14 @@ interface WYSIWYGEditorProps {
   content: string
   onChange: (content: string) => void
   placeholder?: string
+  minHeight?: string
 }
 
 export function WYSIWYGEditor({
   content,
   onChange,
   placeholder = 'Skriv indhold her...',
+  minHeight = '300px',
 }: WYSIWYGEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -220,7 +222,11 @@ export function WYSIWYGEditor({
       </div>
 
       {/* Editor Content */}
-      <EditorContent editor={editor} className="bg-white dark:bg-dark-input min-h-[200px]" />
+      <EditorContent
+        editor={editor}
+        className="bg-white dark:bg-dark-input"
+        style={{ minHeight }}
+      />
     </div>
   )
 }

@@ -56,6 +56,10 @@ import {
   Volume1,
   UserCheck,
   UserX,
+  Key,
+  Eye,
+  EyeOff,
+  Copy,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { User, Customer, CallLog } from '@/types/database'
@@ -143,6 +147,9 @@ export default function SaelgerDetailPage() {
     transcript: string
     date: string
   } | null>(null)
+
+  // Password visibility state
+  const [showPassword, setShowPassword] = useState(false)
 
   // Audio player modal state
   const [audioPlayerCall, setAudioPlayerCall] = useState<{
@@ -660,6 +667,42 @@ export default function SaelgerDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Password display for admin */}
+              {saelger.temp_password && (
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Key className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Midlertidig adgangskode</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-2 py-1 bg-white dark:bg-dark-card rounded text-sm font-mono text-gray-900 dark:text-white">
+                      {showPassword ? saelger.temp_password : '••••••••••••'}
+                    </code>
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      title={showPassword ? 'Skjul' : 'Vis'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(saelger.temp_password!)
+                        toast.success('Adgangskode kopieret')
+                      }}
+                      className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      title="Kopier"
+                    >
+                      <Copy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="text-right">

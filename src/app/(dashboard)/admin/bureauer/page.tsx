@@ -73,7 +73,7 @@ export default function BureauerPage() {
       if (logoFile) {
         const fileExt = logoFile.name.split('.').pop()
         const fileName = `${Date.now()}.${fileExt}`
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('logos')
           .upload(fileName, logoFile)
 
@@ -86,20 +86,28 @@ export default function BureauerPage() {
         logo_url = urlData.publicUrl
       }
 
-      const { error } = await supabase.from('bureaus').insert({
-        name: formData.name,
-        cvr_nr: formData.cvr_nr,
-        contact_person: formData.contact_person,
-        phone: formData.phone,
-        email: formData.email,
-        website: formData.website || null,
-        commission_percent: parseFloat(formData.commission_percent),
-        logo_url,
+      const response = await fetch('/api/users/create-bureau', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          cvr_nr: formData.cvr_nr,
+          contact_person: formData.contact_person,
+          phone: formData.phone,
+          email: formData.email,
+          website: formData.website || null,
+          commission_percent: parseFloat(formData.commission_percent),
+          logo_url,
+        }),
       })
 
-      if (error) throw error
+      const data = await response.json()
 
-      toast.success('Bureau oprettet!')
+      if (!response.ok) {
+        throw new Error(data.error || 'Kunne ikke oprette bureau')
+      }
+
+      toast.success('Bureau oprettet! Velkomst-email er sendt.')
       setShowModal(false)
       setFormData({
         name: '',

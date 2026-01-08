@@ -38,6 +38,10 @@ import {
   ArrowUpDown,
   Camera,
   Upload,
+  Key,
+  Eye,
+  EyeOff,
+  Copy,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { Bureau, Customer, Lead } from '@/types/database'
@@ -74,6 +78,7 @@ export default function BureauDetailPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const supabase = createClient()
 
@@ -297,6 +302,42 @@ export default function BureauDetailPage() {
                   </a>
                 )}
               </div>
+
+              {/* Password display for admin */}
+              {bureau.temp_password && (
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Key className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span className="text-sm font-medium text-amber-800 dark:text-amber-300">Midlertidig adgangskode</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-2 py-1 bg-white dark:bg-dark-card rounded text-sm font-mono text-gray-900 dark:text-white">
+                      {showPassword ? bureau.temp_password : '••••••••••••'}
+                    </code>
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      title={showPassword ? 'Skjul' : 'Vis'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(bureau.temp_password!)
+                        toast.success('Adgangskode kopieret')
+                      }}
+                      className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      title="Kopier"
+                    >
+                      <Copy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="text-right">

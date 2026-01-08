@@ -20,15 +20,26 @@ import {
   ContractStatusBadge,
 } from '@/components/ui'
 import { WYSIWYGEditor } from '@/components/forms/WYSIWYGEditor'
-import { Plus, FileText, Search, Download, ExternalLink, Copy } from 'lucide-react'
+import { Plus, FileText, Search, Download, ExternalLink, Copy, Building2, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
-import type { Contract } from '@/types/database'
+import type { Contract, Bureau } from '@/types/database'
+
+interface PartyOption {
+  id: string
+  name: string
+  identifier: string
+  identifier_type: 'cvr' | 'cpr'
+  type: 'bureau' | 'oresund' | 'custom'
+}
 
 export default function SaelgerKontrakterPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [bureaus, setBureaus] = useState<Bureau[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [partySource, setPartySource] = useState<'custom' | 'bureau' | 'oresund'>('custom')
+  const [selectedBureauId, setSelectedBureauId] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     partyName: '',
@@ -40,9 +51,28 @@ export default function SaelgerKontrakterPage() {
 
   const supabase = createClient()
 
+  // Øresund Partners info
+  const oresundParty: PartyOption = {
+    id: 'oresund',
+    name: 'Øresund Partners ApS',
+    identifier: '12345678', // Replace with actual CVR
+    identifier_type: 'cvr',
+    type: 'oresund',
+  }
+
   useEffect(() => {
     fetchContracts()
+    fetchBureaus()
   }, [])
+
+  async function fetchBureaus() {
+    const { data } = await supabase
+      .from('bureaus')
+      .select('*')
+      .order('name')
+
+    setBureaus(data || [])
+  }
 
   async function fetchContracts() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -59,6 +89,30 @@ export default function SaelgerKontrakterPage() {
     setLoading(false)
   }
 
+  function getSelectedParty() {
+    if (partySource === 'oresund') {
+      return {
+        name: oresundParty.name,
+        identifier: oresundParty.identifier,
+        identifier_type: oresundParty.identifier_type,
+      }
+    } else if (partySource === 'bureau' && selectedBureauId) {
+      const bureau = bureaus.find(b => b.id === selectedBureauId)
+      if (bureau) {
+        return {
+          name: bureau.name,
+          identifier: bureau.cvr_nr,
+          identifier_type: 'cvr' as const,
+        }
+      }
+    }
+    return {
+      name: formData.partyName,
+      identifier: formData.partyIdentifier || null,
+      identifier_type: formData.partyIdentifierType,
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
@@ -66,17 +120,18 @@ export default function SaelgerKontrakterPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       const publicLink = uuidv4()
+      const party = getSelectedParty()
+
+      if (!party.name) {
+        toast.error('Vælg eller indtast en part')
+        setSubmitting(false)
+        return
+      }
 
       const { error } = await supabase.from('contracts').insert({
         name: formData.name,
         content: formData.content,
-        parties: [
-          {
-            name: formData.partyName,
-            identifier: formData.partyIdentifier || null,
-            identifier_type: formData.partyIdentifierType,
-          },
-        ],
+        parties: [party],
         created_by: user?.id,
         public_link: publicLink,
         status: 'afventer',
@@ -93,6 +148,8 @@ export default function SaelgerKontrakterPage() {
         partyIdentifierType: 'cvr',
         content: '',
       })
+      setPartySource('custom')
+      setSelectedBureauId('')
       fetchContracts()
     } catch (error: any) {
       toast.error(error.message || 'Kunne ikke oprette kontrakt')
@@ -239,41 +296,139 @@ export default function SaelgerKontrakterPage() {
             placeholder="Indtast kontraktnavn"
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Part Navn"
-              value={formData.partyName}
-              onChange={(e) => setFormData({ ...formData, partyName: e.target.value })}
-              required
-              placeholder="Fulde navn eller virksomhedsnavn"
-            />
+          {/* Party Source Selector */}
+          <div>
+            <label className="label">Vælg part</label>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setPartySource('oresund')}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  partySource === 'oresund'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold text-sm">Ø</span>
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Øresund Partners</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPartySource('bureau')}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  partySource === 'bureau'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Vælg Bureau</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPartySource('custom')}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  partySource === 'custom'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Indtast Selv</span>
+                </div>
+              </button>
+            </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Øresund Partners selected - show info */}
+            {partySource === 'oresund' && (
+              <div className="p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold">Ø</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">{oresundParty.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">CVR: {oresundParty.identifier}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bureau selector */}
+            {partySource === 'bureau' && (
               <div>
-                <label className="label">Type</label>
                 <select
                   className="input"
-                  value={formData.partyIdentifierType}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      partyIdentifierType: e.target.value as 'cvr' | 'cpr',
-                    })
-                  }
+                  value={selectedBureauId}
+                  onChange={(e) => setSelectedBureauId(e.target.value)}
+                  required={partySource === 'bureau'}
                 >
-                  <option value="cvr">CVR Nr</option>
-                  <option value="cpr">CPR Nr</option>
+                  <option value="">Vælg et bureau...</option>
+                  {bureaus.map((bureau) => (
+                    <option key={bureau.id} value={bureau.id}>
+                      {bureau.name} (CVR: {bureau.cvr_nr})
+                    </option>
+                  ))}
                 </select>
+                {selectedBureauId && (
+                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>{bureaus.find(b => b.id === selectedBureauId)?.name}</strong> vil blive tilføjet som part
+                    </p>
+                  </div>
+                )}
               </div>
-              <Input
-                label={formData.partyIdentifierType === 'cvr' ? 'CVR Nr' : 'CPR Nr'}
-                value={formData.partyIdentifier}
-                onChange={(e) =>
-                  setFormData({ ...formData, partyIdentifier: e.target.value })
-                }
-                placeholder={formData.partyIdentifierType === 'cvr' ? '12345678' : '123456-1234'}
-              />
-            </div>
+            )}
+
+            {/* Custom party input */}
+            {partySource === 'custom' && (
+              <div className="space-y-4">
+                <Input
+                  label="Part Navn"
+                  value={formData.partyName}
+                  onChange={(e) => setFormData({ ...formData, partyName: e.target.value })}
+                  required={partySource === 'custom'}
+                  placeholder="Fulde navn eller virksomhedsnavn"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Type</label>
+                    <select
+                      className="input"
+                      value={formData.partyIdentifierType}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          partyIdentifierType: e.target.value as 'cvr' | 'cpr',
+                        })
+                      }
+                    >
+                      <option value="cvr">CVR Nr</option>
+                      <option value="cpr">CPR Nr</option>
+                    </select>
+                  </div>
+                  <Input
+                    label={formData.partyIdentifierType === 'cvr' ? 'CVR Nr' : 'CPR Nr'}
+                    value={formData.partyIdentifier}
+                    onChange={(e) =>
+                      setFormData({ ...formData, partyIdentifier: e.target.value })
+                    }
+                    placeholder={formData.partyIdentifierType === 'cvr' ? '12345678' : '123456-1234'}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
